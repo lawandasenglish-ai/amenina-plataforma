@@ -200,6 +200,31 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
 .nivel-dot.current{background:var(--ccream);border-color:var(--cr);color:var(--cr);box-shadow:0 0 0 4px rgba(121,20,40,.12);}
 .nivel-lbl{font-size:10px;color:var(--crose);font-weight:600;}
 .nivel-lbl.current{color:var(--cr);font-weight:700;}
+/* MENSAGENS */
+.msg-layout{display:grid;grid-template-columns:240px 1fr;background:var(--ccard);border-radius:11px;border:1px solid rgba(121,20,40,.08);height:calc(100vh - 140px);overflow:hidden;}
+.msg-sidebar{border-right:1px solid rgba(121,20,40,.08);display:flex;flex-direction:column;}
+.msg-sidebar-hdr{padding:14px;border-bottom:1px solid rgba(121,20,40,.08);font-size:13px;font-weight:700;color:var(--cd);}
+.msg-contacts{flex:1;overflow-y:auto;}
+.msg-contact{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;border-bottom:1px solid rgba(121,20,40,.04);transition:background .12s;}
+.msg-contact:hover{background:rgba(121,20,40,.03);}.msg-contact.active{background:rgba(121,20,40,.07);}
+.msg-cav{width:34px;height:34px;border-radius:50%;background:var(--cr);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ccream);flex-shrink:0;}
+.msg-cname{font-size:12px;font-weight:600;color:var(--cd);}
+.msg-crole{font-size:10px;color:var(--crose);}
+.msg-main{display:flex;flex-direction:column;}
+.msg-hdr{padding:14px 17px;border-bottom:1px solid rgba(121,20,40,.08);display:flex;align-items:center;gap:10px;}
+.msg-hdr-av{width:34px;height:34px;border-radius:50%;background:var(--cr);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ccream);}
+.msg-hdr-name{font-size:13px;font-weight:700;color:var(--cd);}
+.msg-hdr-role{font-size:10px;color:var(--crose);}
+.msg-body{flex:1;overflow-y:auto;padding:16px;}
+.msg-bubble-wrap{display:flex;margin-bottom:12px;}
+.msg-bubble-wrap.me{justify-content:flex-end;}
+.msg-bubble{max-width:65%;padding:9px 13px;border-radius:12px;font-size:12px;line-height:1.5;}
+.msg-bubble-wrap.them .msg-bubble{background:rgba(121,20,40,.06);color:var(--cd);border-bottom-left-radius:3px;}
+.msg-bubble-wrap.me .msg-bubble{background:var(--cr);color:var(--ccream);border-bottom-right-radius:3px;}
+.msg-bubble-time{font-size:10px;opacity:.6;margin-top:3px;text-align:right;}
+.msg-input-area{padding:12px 14px;border-top:1px solid rgba(121,20,40,.08);display:flex;gap:9px;align-items:flex-end;}
+.msg-input-area textarea{flex:1;padding:10px 13px;border-radius:9px;border:1.5px solid rgba(121,20,40,.18);background:#fff;font-size:12px;color:var(--cd);font-family:var(--font-sans);resize:none;height:42px;outline:none;}
+.msg-input-area textarea:focus{border-color:var(--cr);}
 </style>
 </head>
 <body>
@@ -492,25 +517,25 @@ var NAVS={
     {s:'Comercial'},{id:'crm',l:'CRM / Leads',ic:'ti-target',n:()=>LEADS.length},{id:'funil',l:'Funil de Vendas',ic:'ti-filter'},{id:'matriculas',l:'Matrículas',ic:'ti-file-plus'},{id:'metas',l:'Metas',ic:'ti-trophy'},
     {s:'Pedagógico'},{id:'aulas',l:'Relatórios de Aulas',ic:'ti-book'},{id:'teachers',l:'Teachers',ic:'ti-school'},{id:'reunioes',l:'Reuniões',ic:'ti-calendar-event'},{id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},{id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {s:'Financeiro'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},{id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:()=>ALUNOS.filter(a=>a.fin==='Atrasado').length},{id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
-    {s:'Comunicação'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
+    {s:'Comunicação'},{id:'mensagens',l:'Mensagens',ic:'ti-message'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
   ],
   pedagogico:[
     {s:'Pedagógico'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},{id:'alunos',l:'Alunos',ic:'ti-users'},{id:'aulas',l:'Relatórios de Aulas',ic:'ti-book'},{id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},{id:'retencao',l:'Alunos em Risco',ic:'ti-alert-circle'},{id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {s:'Equipe'},{id:'teachers',l:'Teachers',ic:'ti-school'},{id:'reunioes',l:'Reuniões',ic:'ti-calendar-event'},{id:'feedbacks',l:'Feedbacks',ic:'ti-message-circle'},
-    {s:'Comunicação'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
+    {s:'Comunicação'},{id:'mensagens',l:'Mensagens',ic:'ti-message'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
   ],
   comercial:[
     {s:'Vendas'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},{id:'crm',l:'CRM / Leads',ic:'ti-target',n:()=>LEADS.length},{id:'funil',l:'Funil de Vendas',ic:'ti-filter'},{id:'matriculas',l:'Matrículas',ic:'ti-file-plus'},{id:'metas',l:'Minhas Metas',ic:'ti-trophy'},
-    {s:'Comunicação'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
+    {s:'Comunicação'},{id:'mensagens',l:'Mensagens',ic:'ti-message'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
   ],
   financeiro:[
     {s:'Financeiro'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},{id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:()=>ALUNOS.filter(a=>a.fin==='Atrasado').length},{id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {s:'Alunos'},{id:'alunos',l:'Situação Financeira',ic:'ti-users'},
-    {s:'Comunicação'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
+    {s:'Comunicação'},{id:'mensagens',l:'Mensagens',ic:'ti-message'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
   ],
   teacher:[
     {s:'Meus Alunos'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},{id:'alunos',l:'Meus Alunos',ic:'ti-users'},{id:'aulas',l:'Registrar Aulas',ic:'ti-book'},{id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
-    {s:'Comunicação'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
+    {s:'Comunicação'},{id:'mensagens',l:'Mensagens',ic:'ti-message'},{id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
   ],
 };
 
@@ -544,7 +569,7 @@ function goPageAluno(id){
   ({dashboard:renderAluDash,'minhas-aulas':renderAluAulas,progresso:renderAluProgresso,materiais:renderAluMateriais,extras:renderAluExtras,financeiro:renderAluFinanceiro}[id]||((c)=>c.innerHTML='<div class="card" style="text-align:center;padding:40px">Em breve!</div>'))(c);
 }
 
-var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',alunos:'Alunos',crm:'CRM — Leads',funil:'Funil de Vendas',
+var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',mensagens:'Mensagens',alunos:'Alunos',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',pagamentos:'Pagamentos',inadimplencia:'Inadimplência',
   nf:'Notas Fiscais',aulas:'Relatórios de Aulas',teachers:'Teachers',
   retencao:'Retenção / Alunos em Risco',feedbacks:'Feedbacks',
@@ -560,7 +585,7 @@ function goPage(id){
     inadimplencia:()=>renderPagamentos(true),nf:renderNF,retencao:renderRetencao,
     aulas:renderAulas,frequencia:renderFrequencia,metas:renderMetas,
     feedbacks:renderFeedbacks,matriculas:renderMatriculas,
-    reunioes:renderReunioes,tarefas:renderTarefas,extras:renderExtrasGestao,
+    reunioes:renderReunioes,tarefas:renderTarefas,extras:renderExtrasGestao,mensagens:renderMensagens,
   }[id]||renderEmpty)(c,a);
 }
 
@@ -1025,6 +1050,88 @@ function renderAluFinanceiro(c){
     +'<div style="text-align:center;padding:12px;background:rgba(121,20,40,.04);border-radius:9px"><div style="font-size:18px;font-weight:700;color:var(--cr)">R$'+al.valor+'</div><div style="font-size:11px;color:var(--crose)">Mensalidade</div></div>'
     +'<div style="text-align:center;padding:12px;background:rgba(121,20,40,.04);border-radius:9px"><div style="font-size:18px;font-weight:700;color:var(--cr)">Dia '+al.venc+'</div><div style="font-size:11px;color:var(--crose)">Vencimento</div></div>'
     +'</div></div>';
+}
+
+// ══ MENSAGENS ══
+var MSGS_DATA={};
+var _msgContato=null;
+
+function getContatos(){
+  var todos=[
+    {id:'gestao',nome:'Lawanda',role:'Diretoria',av:'LW'},
+    {id:'pedagogico',nome:'Kessia',role:'Coord. Pedagógica',av:'KE'},
+    {id:'comercial',nome:'Luana',role:'Comercial',av:'LU'},
+    {id:'financeiro',nome:'Raynara',role:'Financeiro',av:'RA'},
+  ];
+  TEACHERS.forEach(t=>{todos.push({id:'t_'+t.id,nome:t.nome,role:'Teacher',av:inits(t.nome)});});
+  // Remover o próprio usuário
+  var meuId=S.perfil==='teacher'?'t_'+S.teacherId:S.perfil;
+  return todos.filter(c=>c.id!==meuId);
+}
+
+function getMsgKey(a,b){return [a,b].sort().join('_');}
+
+function renderMensagens(c,a){
+  var contatos=getContatos();
+  if(!_msgContato&&contatos.length)_msgContato=contatos[0].id;
+  var contatoAtivo=contatos.find(ct=>ct.id===_msgContato)||contatos[0];
+  var meuId=S.perfil==='teacher'?'t_'+S.teacherId:S.perfil;
+
+  c.innerHTML='<div class="msg-layout">'
+    +'<div class="msg-sidebar"><div class="msg-sidebar-hdr">💬 Conversas</div>'
+    +'<div class="msg-contacts">'
+    +contatos.map(ct=>{
+      var key=getMsgKey(meuId,ct.id);
+      var msgs=MSGS_DATA[key]||[];
+      return '<div class="msg-contact'+(ct.id===_msgContato?' active':'')+'" onclick="selContato(''+ct.id+'')">'
+        +'<div class="msg-cav">'+ct.av+'</div>'
+        +'<div><div class="msg-cname">'+ct.nome+'</div><div class="msg-crole">'+ct.role+'</div></div></div>';
+    }).join('')
+    +'</div></div>'
+    +(contatoAtivo?
+      '<div class="msg-main">'
+      +'<div class="msg-hdr"><div class="msg-hdr-av">'+contatoAtivo.av+'</div>'
+      +'<div><div class="msg-hdr-name">'+contatoAtivo.nome+'</div><div class="msg-hdr-role">'+contatoAtivo.role+'</div></div></div>'
+      +'<div class="msg-body" id="msg-body">'+renderBubbles(meuId,contatoAtivo.id)+'</div>'
+      +'<div class="msg-input-area">'
+      +'<textarea id="msg-input" placeholder="Digite sua mensagem..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMsg();}"></textarea>'
+      +'<button class="btn btn-primary" onclick="enviarMsg()"><i class="ti ti-send"></i></button>'
+      +'</div></div>'
+    :'<div class="msg-main" style="display:flex;align-items:center;justify-content:center;color:var(--crose)">Selecione uma conversa</div>')
+    +'</div>';
+
+  setTimeout(()=>{var b=document.getElementById('msg-body');if(b)b.scrollTop=b.scrollHeight;},50);
+}
+
+function renderBubbles(meuId,outroId){
+  var key=getMsgKey(meuId,outroId);
+  var msgs=MSGS_DATA[key]||[];
+  if(!msgs.length)return '<div style="text-align:center;padding:40px;color:var(--crose);font-size:12px">Nenhuma mensagem ainda. Diga olá! 👋</div>';
+  return msgs.map(m=>{
+    var isMe=m.de===meuId;
+    return '<div class="msg-bubble-wrap '+(isMe?'me':'them')+'">'
+      +'<div class="msg-bubble">'+m.texto+'<div class="msg-bubble-time">'+m.hora+'</div></div></div>';
+  }).join('');
+}
+
+function selContato(cid){
+  _msgContato=cid;
+  renderMensagens(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+function enviarMsg(){
+  var inp=document.getElementById('msg-input');
+  var txt=(inp&&inp.value||'').trim();
+  if(!txt)return;
+  var meuId=S.perfil==='teacher'?'t_'+S.teacherId:S.perfil;
+  var key=getMsgKey(meuId,_msgContato);
+  if(!MSGS_DATA[key])MSGS_DATA[key]=[];
+  var now=new Date();
+  var hora=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+  MSGS_DATA[key].push({de:meuId,texto:txt,hora});
+  inp.value='';
+  var body=document.getElementById('msg-body');
+  if(body){body.innerHTML=renderBubbles(meuId,_msgContato);body.scrollTop=body.scrollHeight;}
 }
 </script>
 </body>
