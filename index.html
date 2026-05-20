@@ -234,7 +234,7 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
   <div class="ll">
     <div class="ld a"></div><div class="ld b"></div><div class="ld c"></div>
     <div style="position:relative;z-index:2">
-      <img src="https://ameninaqueensinaingles.com.br/wp-content/uploads/2024/01/logo-branca.png" alt="A Menina que Ensina Inglês" style="max-width:200px;margin-bottom:16px;display:block" onerror="this.style.display='none';document.getElementById('brand-fallback').style.display='block'">
+      <img id="logo-login" src="https://ameninaqueensinaingles.com.br/wp-content/uploads/2024/01/logo-branca.png" alt="A Menina que Ensina Inglês" style="max-width:200px;margin-bottom:16px;display:block">
       <div id="brand-fallback" style="display:none">
         <span class="l-stars">✦ ✦ ✦</span>
         <div class="l-brand">A menina<br>que ensina<br><em>inglês</em></div>
@@ -287,7 +287,7 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
 <div id="screen-app" class="hidden">
   <div class="sb">
     <div class="sb-top">
-      <img src="https://ameninaqueensinaingles.com.br/wp-content/uploads/2024/01/logo-branca.png" alt="A Menina que Ensina Inglês" style="max-width:140px;margin-bottom:8px;display:block" onerror="this.style.display='none';document.getElementById('sb-brand-txt').style.display='block'">
+      <img id="logo-sb" src="https://ameninaqueensinaingles.com.br/wp-content/uploads/2024/01/logo-branca.png" alt="A Menina que Ensina Inglês" style="max-width:140px;margin-bottom:8px;display:block">
       <div id="sb-brand-txt" style="display:none"><span class="sb-stars">✦ ✦ ✦</span><div class="sb-brand">A Menina que<br>Ensina Inglês</div></div>
       <div class="sb-uw">
         <div class="sb-av" id="sb-av">LW</div>
@@ -329,6 +329,22 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
 <div class="toast" id="toast"></div>
 
 <script>
+// Tratar erro de carregamento da logo
+window.addEventListener('load', function(){
+  var logoLogin = document.getElementById('logo-login');
+  if(logoLogin) logoLogin.onerror = function(){
+    this.style.display='none';
+    var fb = document.getElementById('brand-fallback');
+    if(fb) fb.style.display='block';
+  };
+  var logoSb = document.getElementById('logo-sb');
+  if(logoSb) logoSb.onerror = function(){
+    this.style.display='none';
+    var fb = document.getElementById('sb-brand-txt');
+    if(fb) fb.style.display='block';
+  };
+});
+
 // ══ BANCO DE DADOS LOCAL ══
 // Equipe da escola (gerenciada pela Diretoria)
 var EQUIPE=[
