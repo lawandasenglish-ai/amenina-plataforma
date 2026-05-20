@@ -209,9 +209,12 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
   <div class="ll">
     <div class="ld a"></div><div class="ld b"></div><div class="ld c"></div>
     <div style="position:relative;z-index:2">
-      <span class="l-stars">✦ ✦ ✦</span>
-      <div class="l-brand">A menina<br>que ensina<br><em>inglês</em></div>
-      <div class="l-tagline">Plataforma de Gestão Interna</div>
+      <img src="https://ameninaqueensinaingles.com.br/wp-content/uploads/2024/01/logo-branca.png" alt="A Menina que Ensina Inglês" style="max-width:200px;margin-bottom:16px;display:block" onerror="this.style.display='none';document.getElementById('brand-fallback').style.display='block'">
+      <div id="brand-fallback" style="display:none">
+        <span class="l-stars">✦ ✦ ✦</span>
+        <div class="l-brand">A menina<br>que ensina<br><em>inglês</em></div>
+      </div>
+      <div class="l-tagline">Plataforma de Ensino</div>
     </div>
     <div style="position:relative;z-index:2">
       <span class="l-qmark">"</span>
@@ -239,7 +242,9 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
     <!-- ABA EQUIPE -->
     <div id="login-equipe" class="hidden">
       <div id="err-equipe" class="l-err">Senha incorreta. Tente novamente.</div>
-      <div style="margin-bottom:16px;font-size:13px;color:var(--crose)">Selecione seu perfil e digite sua senha.</div>
+      <div style="margin-bottom:16px;font-size:13px;color:var(--crose)">Entre com suas credenciais e selecione seu perfil.</div>
+      <div class="lf"><label>Usuário</label><input type="text" id="eq-nome" placeholder="Seu nome de usuário"></div>
+      <div class="lf"><label>Senha</label><input type="password" id="eq-senha" placeholder="Sua senha"></div>
       <div class="l-profs">
         <div class="lp sel" onclick="selP(this,'gestao','Lawanda','Diretoria','LW',null)"><i class="ti ti-crown"></i><span>Diretoria</span></div>
         <div class="lp" onclick="selP(this,'pedagogico','Kessia','Coord. Pedagógica','KE',null)"><i class="ti ti-book"></i><span>Pedagógico</span></div>
@@ -247,7 +252,6 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
         <div class="lp" onclick="selP(this,'financeiro','Raynara','Financeiro','RA',null)"><i class="ti ti-receipt"></i><span>Financeiro</span></div>
         <div class="lp" onclick="selP(this,'teacher','','Teacher','TC',null)"><i class="ti ti-school"></i><span>Teacher</span></div>
       </div>
-      <div class="lf"><label>Senha</label><input type="password" id="eq-senha" placeholder="Digite sua senha"></div>
       <button class="l-btn" onclick="doLogin()">Entrar na plataforma →</button>
     </div>
     <div class="l-foot">© 2025 A Menina que Ensina Inglês · Todos os direitos reservados</div>
@@ -258,8 +262,8 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
 <div id="screen-app" class="hidden">
   <div class="sb">
     <div class="sb-top">
-      <span class="sb-stars">✦ ✦ ✦</span>
-      <div class="sb-brand">A Menina que<br>Ensina Inglês</div>
+      <img src="https://ameninaqueensinaingles.com.br/wp-content/uploads/2024/01/logo-branca.png" alt="A Menina que Ensina Inglês" style="max-width:140px;margin-bottom:8px;display:block" onerror="this.style.display='none';document.getElementById('sb-brand-txt').style.display='block'">
+      <div id="sb-brand-txt" style="display:none"><span class="sb-stars">✦ ✦ ✦</span><div class="sb-brand">A Menina que<br>Ensina Inglês</div></div>
       <div class="sb-uw">
         <div class="sb-av" id="sb-av">LW</div>
         <div><div class="sb-un" id="sb-name">Lawanda</div><div class="sb-rb" id="sb-role">Diretoria</div></div>
@@ -393,18 +397,23 @@ function selP(el,p,name,role,av,tid){
 }
 
 function doLogin(){
+  var nome=document.getElementById('eq-nome').value.trim();
   var senha=document.getElementById('eq-senha').value;
   var err=document.getElementById('err-equipe');
+  if(!nome){err.style.display='block';err.textContent='Digite seu nome.';return;}
   if(!senha){err.style.display='block';err.textContent='Digite sua senha.';return;}
-  // Validar senha baseado no perfil selecionado
   var senhas={gestao:'Direcao2@',pedagogico:'Coordenacao1@',comercial:'Comercial4@',financeiro:'Financeiro3@',teacher:'Teachers2026@'};
   if(senha!==senhas[_perfSel.perfil]){err.style.display='block';err.textContent='Senha incorreta. Tente novamente.';document.getElementById('eq-senha').value='';return;}
   err.style.display='none';
-  // Para teacher, identificar qual teacher pelo nome selecionado
+  // Para teacher, usar o nome digitado para identificar
   if(_perfSel.perfil==='teacher'){
-    // Mostra modal para escolher qual teacher é
-    openModal(mEscolherTeacher());return;
+    var eq=EQUIPE.find(e=>e.role==='teacher'&&e.nome.toLowerCase()===nome.toLowerCase());
+    if(!eq){err.style.display='block';err.textContent='Nome não encontrado. Verifique seu nome cadastrado.';return;}
+    entrarApp({perfil:'teacher',userName:eq.nome,userRole:'Teacher',avatar:eq.avatar,teacherId:eq.teacherId,duploPerfil:false,perfilExtra:null});
+    return;
   }
+  // Para outros perfis, usar o nome do perfil selecionado
+  _perfSel.userName=nome;
   entrarApp(_perfSel);
 }
 
