@@ -404,22 +404,21 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
     <!-- ABA ALUNO -->
     <div id="login-aluno">
       <div class="l-sub" style="margin-bottom:18px">Entre com seu email e senha para acessar sua área.</div>
-      <div class="lf"><label>Email</label><input type="email" id="al-email" value="anabeatriz@email.com"></div>
-      <div class="lf"><label>Senha</label><input type="password" id="al-senha" value="••••••••"></div>
+      <div class="lf"><label>Email</label><input type="email" id="al-email" placeholder="seu@email.com"></div>
+      <div class="lf"><label>Senha</label><input type="password" id="al-senha" placeholder="Digite sua senha"></div>
       <button class="l-btn" onclick="doLoginAluno()" style="margin-top:4px">Acessar minha área →</button>
     </div>
     <!-- ABA EQUIPE -->
     <div id="login-equipe" class="hidden">
-      <div class="l-sub" style="margin-bottom:16px">Entre com suas credenciais e selecione seu perfil.</div>
-      <div class="lf"><label>E-mail</label><input type="email" value="admin@amenina.com"></div>
-      <div class="lf"><label>Senha</label><input type="password" value="••••••••"></div>
+      <div class="l-sub" style="margin-bottom:16px">Selecione seu perfil e entre com sua senha.</div>
+      <div class="lf"><label>Senha</label><input type="password" id="eq-senha" placeholder="Digite sua senha"></div>
       <div class="l-div"><div class="l-div-line"></div><span class="l-div-txt">selecione o perfil</span><div class="l-div-line"></div></div>
       <div class="l-profs">
         <div class="lp sel" onclick="selP(this,'gestao','Ana Paula','Diretoria','AP',null)"><i class="ti ti-crown"></i><span>Diretoria</span></div>
-        <div class="lp" onclick="selP(this,'pedagogico','Mariana Costa','Coord. Pedagógica','MC',null)"><i class="ti ti-book"></i><span>Pedagógico</span></div>
-        <div class="lp" onclick="selP(this,'comercial','Jéssica Lima','Comercial','JL',null)"><i class="ti ti-target"></i><span>Comercial</span></div>
-        <div class="lp" onclick="selP(this,'financeiro','Carla Mendes','Financeiro','CF',null)"><i class="ti ti-receipt"></i><span>Financeiro</span></div>
-        <div class="lp" onclick="selP(this,'teacher','Sarah Johnson','Teacher','SJ','t1')"><i class="ti ti-school"></i><span>Teacher</span></div>
+        <div class="lp" onclick="selP(this,'pedagogico','Kessia','Coord. Pedagógica','KE',null)"><i class="ti ti-book"></i><span>Pedagógico</span></div>
+        <div class="lp" onclick="selP(this,'comercial','Luana','Comercial','LU',null)"><i class="ti ti-target"></i><span>Comercial</span></div>
+        <div class="lp" onclick="selP(this,'financeiro','Raynara','Financeiro','RA',null)"><i class="ti ti-receipt"></i><span>Financeiro</span></div>
+        <div class="lp" onclick="selP(this,'teacher','Kessia','Teacher','KE','t1')"><i class="ti ti-school"></i><span>Teacher</span></div>
       </div>
       <button class="l-btn" onclick="doLogin()">Entrar na plataforma →</button>
     </div>
@@ -439,7 +438,7 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
       </div>
     </div>
     <nav class="sb-nav" id="sb-nav"></nav>
-    <div class="sb-foot"><button class="sb-out" onclick="doLogout()"><i class="ti ti-logout"></i> Sair</button></div>
+    <div class="sb-foot"><div id="sb-switch" style="display:none;margin-bottom:8px"><button onclick="alternarPerfil()" style="width:100%;padding:7px;background:rgba(247,198,211,.1);border:1px solid rgba(247,198,211,.2);border-radius:7px;color:var(--cp);font-size:11px;cursor:pointer;font-family:var(--font-sans);display:flex;align-items:center;justify-content:center;gap:7px"><i class="ti ti-switch-horizontal"></i> <span id="sb-switch-label">Alternar perfil</span></button></div><button class="sb-out" onclick="doLogout()"><i class="ti ti-logout"></i> Sair</button></div>
   </div>
   <div class="mw">
     <div class="topbar">
@@ -478,63 +477,26 @@ function ddiSelect(id,sel){return '<select id="'+id+'" style="width:80px!importa
 // ══ DATA ══
 var VENC=[5,10,15,20,30];
 var TEACHERS=[
-  {id:'t1',nome:'Sarah Johnson',email:'sarah@amenina.com',alunos:['a1','a2','a6'],retencao:94,status:'Excelente'},
-  {id:'t2',nome:'Patricia Alves',email:'patricia@amenina.com',alunos:['a3','a5','a9'],retencao:88,status:'Ótimo'},
-  {id:'t3',nome:'Fernanda Rocha',email:'fernanda@amenina.com',alunos:['a4','a10'],retencao:72,status:'Atenção'},
-  {id:'t4',nome:'Mariana Costa',email:'mariana@amenina.com',alunos:['a7','a8'],retencao:91,status:'Ótimo'},
+  {id:'t1',nome:'Kessia',email:'kessia@amenina.com',alunos:[],retencao:0,status:'Ativo'},
+  {id:'t2',nome:'Alice',email:'alice@amenina.com',alunos:[],retencao:0,status:'Ativo'},
+  {id:'t3',nome:'Aline',email:'aline@amenina.com',alunos:[],retencao:0,status:'Ativo'},
+  {id:'t4',nome:'Nívive',email:'nivive@amenina.com',alunos:[],retencao:0,status:'Ativo'},
+  {id:'t5',nome:'Bruna',email:'bruna@amenina.com',alunos:[],retencao:0,status:'Ativo'},
+  {id:'t6',nome:'Islla',email:'islla@amenina.com',alunos:[],retencao:0,status:'Ativo'},
+  {id:'t7',nome:'Isabella',email:'isabella@amenina.com',alunos:[],retencao:0,status:'Ativo'},
 ];
-var ALUNOS=[
-  {id:'a1',nome:'Ana Beatriz Silva',email:'anabeatriz@email.com',nivel:'B2',teacherId:'t1',plano:'Mensal',valor:320,venc:20,fin:'Pago',status:'Ativo',faltas:0,freq:96,risco:'low',matricula:'03/01/2025',nfEmitida:true,nfArquivo:null,pgtoData:'19/05/2025',comentarios:[{data:'10/05/2025',autor:'Sarah Johnson',texto:'Aluna muito dedicada, evoluindo rapidamente no speaking.'}]},
-  {id:'a2',nome:'Camila Sousa',email:'camila@email.com',nivel:'A2',teacherId:'t1',plano:'Mensal',valor:320,venc:10,fin:'Pago',status:'Atenção',faltas:2,freq:73,risco:'medium',matricula:'15/02/2025',nfEmitida:false,nfArquivo:null,pgtoData:'09/05/2025',comentarios:[]},
-  {id:'a3',nome:'Luisa Martins',email:'luisa@email.com',nivel:'A1',teacherId:'t2',plano:'Mensal',valor:320,venc:15,fin:'Atrasado',status:'Risco',faltas:4,freq:51,risco:'high',matricula:'10/01/2025',nfEmitida:false,nfArquivo:null,pgtoData:null,comentarios:[{data:'05/05/2025',autor:'Patricia Alves',texto:'Recomendo contato urgente com a aluna.'}]},
-  {id:'a4',nome:'Pedro Ramos',email:'pedro@email.com',nivel:'B1',teacherId:'t3',plano:'Semestral',valor:280,venc:5,fin:'Pago',status:'Ativo',faltas:1,freq:88,risco:'low',matricula:'20/03/2025',nfEmitida:true,nfArquivo:null,pgtoData:'05/05/2025',comentarios:[]},
-  {id:'a5',nome:'Marina Costa',email:'marina@email.com',nivel:'A2',teacherId:'t2',plano:'Mensal',valor:320,venc:20,fin:'Pago',status:'Ativo',faltas:0,freq:94,risco:'low',matricula:'05/02/2025',nfEmitida:true,nfArquivo:null,pgtoData:'20/05/2025',comentarios:[]},
-  {id:'a6',nome:'Rafael Torres',email:'rafael@email.com',nivel:'B1',teacherId:'t1',plano:'Mensal',valor:320,venc:30,fin:'Pago',status:'Atenção',faltas:3,freq:67,risco:'medium',matricula:'12/01/2025',nfEmitida:false,nfArquivo:null,pgtoData:'30/04/2025',comentarios:[]},
-  {id:'a7',nome:'Fernanda Lima',email:'fernanda@email.com',nivel:'C1',teacherId:'t4',plano:'Mensal',valor:360,venc:5,fin:'Pago',status:'Ativo',faltas:0,freq:98,risco:'low',matricula:'08/11/2024',nfEmitida:true,nfArquivo:null,pgtoData:'05/05/2025',comentarios:[]},
-  {id:'a8',nome:'Tatiana Faria',email:'tatiana@email.com',nivel:'A1',teacherId:'t4',plano:'Mensal',valor:320,venc:10,fin:'Atrasado',status:'Risco',faltas:5,freq:42,risco:'high',matricula:'01/04/2025',nfEmitida:false,nfArquivo:null,pgtoData:null,comentarios:[]},
-  {id:'a9',nome:'Beatriz Nunes',email:'beatriz@email.com',nivel:'B2',teacherId:'t2',plano:'Semestral',valor:280,venc:15,fin:'Pago',status:'Ativo',faltas:1,freq:91,risco:'low',matricula:'15/11/2024',nfEmitida:true,nfArquivo:null,pgtoData:'15/05/2025',comentarios:[]},
-  {id:'a10',nome:'Juliana Motta',email:'juliana@email.com',nivel:'A2',teacherId:'t3',plano:'Mensal',valor:320,venc:30,fin:'Pago',status:'Ativo',faltas:2,freq:82,risco:'low',matricula:'22/02/2025',nfEmitida:false,nfArquivo:null,pgtoData:'30/04/2025',comentarios:[]},
-];
-var AULAS=[
-  {id:'r1',alunoId:'a1',teacherId:'t1',data:'19/05/2025',presenca:'Presente',conteudo:'Present perfect — travel vocabulary',desempenho:'Excelente',speaking:'Ótimo',participacao:'Alta',homework:'Review unit 8',dificuldades:'Nenhuma',obs:'Pronta para avançar para B2+'},
-  {id:'r2',alunoId:'a1',teacherId:'t1',data:'12/05/2025',presenca:'Presente',conteudo:'Conditionals — if clauses',desempenho:'Bom',speaking:'Bom',participacao:'Alta',homework:'5 frases com conditionals',dificuldades:'Confundiu 2nd e 3rd conditional',obs:''},
-  {id:'r3',alunoId:'a1',teacherId:'t1',data:'05/05/2025',presenca:'Presente',conteudo:'Passive voice review',desempenho:'Bom',speaking:'Ótimo',participacao:'Alta',homework:'Exercícios p. 45',dificuldades:'Nenhuma',obs:''},
-  {id:'r4',alunoId:'a2',teacherId:'t1',data:'19/05/2025',presenca:'Presente',conteudo:'Simple past — review',desempenho:'Regular',speaking:'Regular',participacao:'Baixa',homework:'Irregular verbs list',dificuldades:'Verbos irregulares',obs:'Ritmo mais lento'},
-  {id:'r5',alunoId:'a3',teacherId:'t2',data:'05/05/2025',presenca:'Ausente',conteudo:'—',desempenho:'—',speaking:'—',participacao:'—',homework:'—',dificuldades:'Faltou sem aviso',obs:'3ª falta consecutiva'},
-  {id:'r6',alunoId:'a6',teacherId:'t1',data:'18/05/2025',presenca:'Presente',conteudo:'Business English — emails',desempenho:'Bom',speaking:'Bom',participacao:'Média',homework:'Write a formal email',dificuldades:'Vocabulário formal',obs:''},
-  {id:'r7',alunoId:'a7',teacherId:'t4',data:'19/05/2025',presenca:'Presente',conteudo:'Advanced reading — NYT',desempenho:'Excelente',speaking:'Excelente',participacao:'Alta',homework:'Article summary',dificuldades:'Nenhuma',obs:'Aluna excepcional'},
-  {id:'r8',alunoId:'a7',teacherId:'t4',data:'12/05/2025',presenca:'Presente',conteudo:'C1 — Discourse markers',desempenho:'Excelente',speaking:'Excelente',participacao:'Alta',homework:'Essay draft',dificuldades:'Nenhuma',obs:''},
-  {id:'r9',alunoId:'a9',teacherId:'t2',data:'15/05/2025',presenca:'Presente',conteudo:'B2 — Academic writing',desempenho:'Bom',speaking:'Bom',participacao:'Média',homework:'Essay outline',dificuldades:'Estrutura do parágrafo',obs:''},
-  {id:'r10',alunoId:'a5',teacherId:'t2',data:'18/05/2025',presenca:'Presente',conteudo:'Reported speech',desempenho:'Bom',speaking:'Ótimo',participacao:'Alta',homework:'10 sentences',dificuldades:'Nenhuma',obs:''},
-];
-var LEADS=[
-  {id:'l1',nome:'Sofia Andrade',ddi:'+55',tel:'(11) 98765-4321',email:'sofia@email.com',origem:'Instagram',nivel:'Iniciante',objetivo:'Viagem',etapa:'lead',data:'17/05/2025',obs:'Quer viajar para os EUA em dezembro'},
-  {id:'l2',nome:'Priya Sharma',ddi:'+44',tel:'7911 123456',email:'priya@email.com',origem:'Indicação',nivel:'Intermediário',objetivo:'Trabalho',etapa:'contato',data:'16/05/2025',obs:'Mora em Londres'},
-  {id:'l3',nome:'Renata Souza',ddi:'+351',tel:'912 345 678',email:'renata@email.com',origem:'Site',nivel:'Básico',objetivo:'Imigração',etapa:'aula_exp',data:'15/05/2025',obs:'Mora em Portugal'},
-  {id:'l4',nome:'Carolina Pires',ddi:'+55',tel:'(31) 98888-1234',email:'carol@email.com',origem:'Instagram',nivel:'Avançado',objetivo:'Intercâmbio',etapa:'followup',data:'14/05/2025',obs:'Aula exp. realizada'},
-  {id:'l5',nome:'Amanda Reis',ddi:'+55',tel:'(11) 95555-9876',email:'amanda@email.com',origem:'WhatsApp',nivel:'Iniciante',objetivo:'Dia a dia',etapa:'perdido',data:'10/05/2025',obs:'Optou por outra escola'},
-  {id:'l6',nome:'Gabriela Moura',ddi:'+1',tel:'(305) 555-0123',email:'gabi@email.com',origem:'Instagram',nivel:'Intermediário',objetivo:'Promoção',etapa:'matriculado',data:'12/05/2025',obs:'Mora em Miami'},
-];
+var ALUNOS=[];
+var AULAS=[];
+var LEADS=[];
 var METAS={leads:{meta:40,atual:6},matriculas:{meta:15,atual:1},aulas_exp:{meta:20,atual:1},followups:{meta:25,atual:1},conversao:{meta:45,atual:38}};
-var REUNIOES=[
-  {id:'re1',teacherId:'t1',data:'2025-05-28',hora:'14:00',local:'Google Meet',obs:'Revisão de maio e planejamento de junho.',criadorNome:'Mariana Costa'},
-  {id:'re2',teacherId:'t2',data:'2025-05-29',hora:'15:00',local:'Google Meet',obs:'Alinhamento sobre aluna Luisa em risco.',criadorNome:'Mariana Costa'},
-  {id:'re3',teacherId:'t3',data:'2025-05-30',hora:'10:00',local:'Zoom',obs:'Feedback sobre desempenho geral.',criadorNome:'Ana Paula'},
-  {id:'re4',teacherId:'t4',data:'2025-05-27',hora:'16:00',local:'Google Meet',obs:'Planejamento de junho.',criadorNome:'Mariana Costa'},
-];
-var TAREFAS=[
-  {id:'ta1',titulo:'Enviar boletos de junho',desc:'Enviar links de pagamento para alunos com vencimento no dia 5.',criadorId:'gestao',criadorNome:'Ana Paula',para:['financeiro'],status:'pendente',prioridade:'alta',prazo:'25/05/2025',comentarios:[{autor:'Carla Mendes',data:'19/05/2025',texto:'Vou preparar a lista hoje.'}]},
-  {id:'ta2',titulo:'Contatar alunos em risco',desc:'Ligar para Luisa Martins e Tatiana Faria esta semana.',criadorId:'pedagogico',criadorNome:'Mariana Costa',para:['comercial'],status:'andamento',prioridade:'alta',prazo:'22/05/2025',comentarios:[]},
-  {id:'ta3',titulo:'Relatório mensal pedagógico',desc:'Consolidar frequências e desempenho para apresentação.',criadorId:'gestao',criadorNome:'Ana Paula',para:['pedagogico'],status:'andamento',prioridade:'media',prazo:'30/05/2025',comentarios:[{autor:'Mariana Costa',data:'18/05/2025',texto:'Já comecei a consolidar os dados.'}]},
-  {id:'ta4',titulo:'Registrar relatórios da semana',desc:'Relatórios de aula da semana 19-23/05 até sexta.',criadorId:'pedagogico',criadorNome:'Mariana Costa',para:['t1','t2','t3','t4'],status:'pendente',prioridade:'media',prazo:'23/05/2025',comentarios:[]},
-  {id:'ta5',titulo:'Planilha de leads maio',desc:'Atualizar a planilha com novos leads do mês.',criadorId:'gestao',criadorNome:'Ana Paula',para:['comercial'],status:'concluido',prioridade:'baixa',prazo:'15/05/2025',comentarios:[{autor:'Jéssica Lima',data:'15/05/2025',texto:'Planilha atualizada e enviada!'}]},
-];
+var REUNIOES=[];
+var TAREFAS=[];
 var CONTATOS_POR_PERFIL={
-  gestao:[{id:'pedagogico',nome:'Mariana Costa',role:'Coord. Pedagógica',av:'MC'},{id:'comercial',nome:'Jéssica Lima',role:'Comercial',av:'JL'},{id:'financeiro',nome:'Carla Mendes',role:'Financeiro',av:'CF'},{id:'t1',nome:'Sarah Johnson',role:'Teacher',av:'SJ'},{id:'t2',nome:'Patricia Alves',role:'Teacher',av:'PA'},{id:'t3',nome:'Fernanda Rocha',role:'Teacher',av:'FR'},{id:'t4',nome:'Mariana Costa',role:'Teacher',av:'MC'}],
-  pedagogico:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'comercial',nome:'Jéssica Lima',role:'Comercial',av:'JL'},{id:'financeiro',nome:'Carla Mendes',role:'Financeiro',av:'CF'},{id:'t1',nome:'Sarah Johnson',role:'Teacher',av:'SJ'},{id:'t2',nome:'Patricia Alves',role:'Teacher',av:'PA'},{id:'t3',nome:'Fernanda Rocha',role:'Teacher',av:'FR'},{id:'t4',nome:'Mariana Costa',role:'Teacher',av:'MC'}],
-  comercial:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'pedagogico',nome:'Mariana Costa',role:'Pedagógico',av:'MC'},{id:'financeiro',nome:'Carla Mendes',role:'Financeiro',av:'CF'}],
-  financeiro:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'pedagogico',nome:'Mariana Costa',role:'Pedagógico',av:'MC'},{id:'comercial',nome:'Jéssica Lima',role:'Comercial',av:'JL'}],
-  teacher:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'pedagogico',nome:'Mariana Costa',role:'Coord. Pedagógica',av:'MC'}],
+  gestao:[{id:'pedagogico',nome:'Kessia',role:'Coord. Pedagógica',av:'KE'},{id:'comercial',nome:'Luana',role:'Comercial',av:'LU'},{id:'financeiro',nome:'Raynara',role:'Financeiro',av:'RA'},{id:'t1',nome:'Kessia',role:'Teacher',av:'KE'},{id:'t2',nome:'Alice',role:'Teacher',av:'AL'},{id:'t3',nome:'Aline',role:'Teacher',av:'AI'},{id:'t4',nome:'Nívive',role:'Teacher',av:'NI'},{id:'t5',nome:'Bruna',role:'Teacher',av:'BR'},{id:'t6',nome:'Islla',role:'Teacher',av:'IS'},{id:'t7',nome:'Isabella',role:'Teacher',av:'IB'}],
+  pedagogico:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'comercial',nome:'Luana',role:'Comercial',av:'LU'},{id:'financeiro',nome:'Raynara',role:'Financeiro',av:'RA'},{id:'t1',nome:'Kessia',role:'Teacher',av:'KE'},{id:'t2',nome:'Alice',role:'Teacher',av:'AL'},{id:'t3',nome:'Aline',role:'Teacher',av:'AI'},{id:'t4',nome:'Nívive',role:'Teacher',av:'NI'},{id:'t5',nome:'Bruna',role:'Teacher',av:'BR'},{id:'t6',nome:'Islla',role:'Teacher',av:'IS'},{id:'t7',nome:'Isabella',role:'Teacher',av:'IB'}],
+  comercial:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'pedagogico',nome:'Kessia',role:'Pedagógico',av:'KE'},{id:'financeiro',nome:'Raynara',role:'Financeiro',av:'RA'}],
+  financeiro:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'pedagogico',nome:'Kessia',role:'Pedagógico',av:'KE'},{id:'comercial',nome:'Luana',role:'Comercial',av:'LU'}],
+  teacher:[{id:'gestao',nome:'Ana Paula',role:'Diretoria',av:'AP'},{id:'pedagogico',nome:'Kessia',role:'Coord. Pedagógica',av:'KE'}],
 };
 var MSGS={
   gestao_pedagogico:[{de:'gestao',texto:'Oi Mariana! Já analisou os dados de retenção?',hora:'09:15'},{de:'pedagogico',texto:'Sim! Temos 2 alunas em risco. Vou ligar amanhã.',hora:'09:22'},{de:'gestao',texto:'Ótimo, me avise o resultado 😊',hora:'09:23'}],
@@ -552,12 +514,7 @@ var MATERIAIS={
   a7:[{id:'m5',tipo:'pdf',nome:'Advanced Reading — Strategies.pdf',desc:'Técnicas de leitura avançada',data:'19/05/2025'},{id:'m6',tipo:'link',nome:'The New York Times — Learning',url:'https://www.nytimes.com',desc:'Artigos para prática C1',data:'15/05/2025'}],
 };
 // AULAS EXTRAS — para todos os alunos
-var EXTRAS=[
-  {id:'e1',titulo:'How to Introduce Yourself in English 🌟',desc:'Aprenda a se apresentar em inglês de forma natural e confiante. Perfeito para iniciantes!',nivel:'A1',duracao:'15 min',data:'10/05/2025',videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ',assistidos:[]},
-  {id:'e2',titulo:'Top 10 English Idioms You Need to Know 🎯',desc:'Os idioms mais usados no dia a dia por nativos. Com exemplos práticos e pronúncia.',nivel:'B1',duracao:'22 min',data:'05/05/2025',videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ',assistidos:[]},
-  {id:'e3',titulo:'Pronunciation: The Secret to Sounding Natural ✨',desc:'Técnicas de pronúncia usadas por quem fala inglês fluentemente. Treino prático!',nivel:'Todos',duracao:'18 min',data:'01/05/2025',videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ',assistidos:['a1','a7']},
-  {id:'e4',titulo:'Business English: Emails That Get Responses 💼',desc:'Como escrever emails profissionais em inglês que realmente funcionam.',nivel:'B2',duracao:'25 min',data:'25/04/2025',videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ',assistidos:['a1']},
-];
+var EXTRAS=[];
 // FRASES MOTIVACIONAIS
 var MOTIVS=[
   {emoji:'🌟',txt:'Every lesson is a step forward.',sub:'Você está indo incrível!'},
@@ -651,8 +608,25 @@ function switchLoginTab(tab){
 function selP(el,p,name,role,av,tid){
   document.querySelectorAll('.lp').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');
   Object.assign(S,{perfil:p,userName:name,userRole:role,avatar:av,teacherId:tid,msgContato:null});
+  // Kessia tem duplo perfil
+  if(name==='Kessia'){S.duploPerfil=true;S.perfilAlternativo=p==='pedagogico'?'teacher':'pedagogico';}
+  else{S.duploPerfil=false;S.perfilAlternativo=null;}
 }
+var SENHAS_PERFIL={
+  gestao:'Direcao2@',
+  pedagogico:'Coordenacao1@',
+  financeiro:'Financeiro3@',
+  comercial:'Comercial4@',
+  teacher:'Teachers2026@',
+};
+var SENHA_ALUNO='Aluno2026';
+
 function doLogin(){
+  var senhaInput=document.getElementById('eq-senha');
+  var senha=senhaInput?senhaInput.value:'';
+  var senhaCorreta=SENHAS_PERFIL[S.perfil];
+  if(!senha){showToast('Digite sua senha!');return;}
+  if(senha!==senhaCorreta){showToast('Senha incorreta. Tente novamente.');if(senhaInput)senhaInput.value='';return;}
   document.getElementById('screen-login').classList.add('hidden');
   document.getElementById('screen-app').classList.remove('hidden');
   document.getElementById('sb-av').textContent=S.avatar;
@@ -660,11 +634,34 @@ function doLogin(){
   document.getElementById('sb-role').textContent=S.userRole;
   var now=new Date();
   document.getElementById('page-date').textContent=now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  // Mostrar botão de alternância para Kessia
+  var switchBtn=document.getElementById('sb-switch');
+  if(switchBtn){
+    switchBtn.style.display=S.duploPerfil?'block':'none';
+    var lbl=document.getElementById('sb-switch-label');
+    if(lbl)lbl.textContent=S.perfil==='pedagogico'?'Ir para Teacher':'Ir para Pedagógico';
+  }
   buildNav();goPage('dashboard');
+}
+function alternarPerfil(){
+  var novoPerfil=S.perfilAlternativo;
+  var novoRole=novoPerfil==='pedagogico'?'Coord. Pedagógica':'Teacher';
+  var novoTid=novoPerfil==='teacher'?'t1':null;
+  Object.assign(S,{perfil:novoPerfil,userRole:novoRole,teacherId:novoTid,msgContato:null,perfilAlternativo:S.perfil});
+  document.getElementById('sb-role').textContent=novoRole;
+  var lbl=document.getElementById('sb-switch-label');
+  if(lbl)lbl.textContent=novoPerfil==='pedagogico'?'Ir para Teacher':'Ir para Pedagógico';
+  buildNav();goPage('dashboard');
+  showToast('Perfil alternado para '+novoRole+'!');
 }
 function doLoginAluno(){
   var email=document.getElementById('al-email').value.trim();
-  var al=ALUNOS.find(a=>a.email===email)||ALUNOS[0];
+  var senha=document.getElementById('al-senha').value;
+  if(!email){showToast('Digite seu email!');return;}
+  if(!senha){showToast('Digite sua senha!');return;}
+  if(senha!==SENHA_ALUNO){showToast('Senha incorreta. Tente novamente.');return;}
+  var al=ALUNOS.find(a=>a.email===email);
+  if(!al){showToast('Email não encontrado. Verifique com a escola.');return;}
   S.alunoId=al.id;S.userName=al.nome;S.avatar=inits(al.nome);
   document.getElementById('screen-login').classList.add('hidden');
   document.getElementById('screen-aluno').classList.remove('hidden');
