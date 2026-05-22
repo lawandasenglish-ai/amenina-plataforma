@@ -440,20 +440,18 @@ async function carregarDados(){
     ]);
     if(rAl.data&&rAl.data.length) ALUNOS=rAl.data.map(mapAluno);
     if(rTe.data&&rTe.data.length){
-      // Usar teachers do banco - mas manter as locais pelo nome para compatibilidade
-      var dbTeachers=rTe.data.map(mapTeacher);
-      // Para cada teacher local, verificar se existe no banco pelo NOME
-      TEACHERS.forEach(function(local){
-        var noDb=dbTeachers.find(function(db){return db.nome===local.nome;});
-        if(noDb){
-          // Sincronizar ID local com o ID do banco
-          local._dbId=noDb.id;
-        }
+      // Mapear UUID do banco para o ID local de cada teacher
+      rTe.data.forEach(function(dbT){
+        var local=TEACHERS.find(function(t){return t.nome===dbT.nome;});
+        if(local){ _teacherIdMap[local.id]=dbT.id; }
       });
-      // Não adicionar teachers extras do banco - usar apenas as locais
+      console.log('Teachers mapeadas:', _teacherIdMap);
     } else {
-      // Banco vazio - salvar teachers locais
-      TEACHERS.forEach(function(t){ salvarTeacherDB(t); });
+      // Banco vazio - salvar teachers e popular o mapa
+      // Salvar sequencialmente para evitar duplicatas
+      (async function(){
+        for(var i=0;i<TEACHERS.length;i++){ await salvarTeacherDB(TEACHERS[i]); }
+      })();
     }
     if(rLe.data&&rLe.data.length) LEADS=rLe.data.map(mapLead);
     if(rAu.data&&rAu.data.length) AULAS=rAu.data.map(mapAula);
@@ -476,12 +474,19 @@ async function carregarDados(){
 }
 
 function mapAluno(r){
-  return {id:r.id,nome:r.nome,email:r.email,ddi:r.ddi||'+55',tel:r.telefone||'',
-    senha:r.senha||'Aluno2026',nivel:r.nivel||'A1',teacherId:r.teacher_id||null,
-    aulasSemana:r.aulas_semana||1,plano:r.plano||'Mensal',valor:r.valor||320,
+  // Tentar mapear teacher_id do banco para ID local
+  var localTeacherId=r.teacher_id;
+  if(r.teacher_id){
+    // Procurar no mapa inverso
+    var localEntry=Object.keys(_teacherIdMap).find(function(k){return _teacherIdMap[k]===r.teacher_id;});
+    if(localEntry) localTeacherId=localEntry;
+  }
+  return {id:r.id,nome:r.nome,email:r.email||'',ddi:r.ddi||'+55',tel:r.telefone||'',
+    senha:'Aluno2026',nivel:r.nivel||'A1',teacherId:localTeacherId||null,
+    aulasSemana:1,plano:r.plano||'Mensal',valor:r.valor||320,
     venc:r.vencimento||10,fin:r.financeiro||'Pendente',status:r.status||'Ativo',
     faltas:r.faltas||0,freq:r.frequencia||100,risco:r.risco||'low',
-    matricula:r.matricula||'',fichaUrl:r.ficha_url||null,
+    matricula:r.matricula||'',fichaUrl:null,
     nfEmitida:r.nf_emitida||false,comentarios:[]};
 }
 function mapTeacher(r){
@@ -515,21 +520,68 @@ function mapTarefa(r){
 async function salvarAlunaDB(al){
   if(!sb) return;
   try{
-    var r=await sb.from('alunos').upsert({
-      id:al.id,nome:al.nome,email:al.email,telefone:al.tel||'',ddi:al.ddi||'+55',
-      nivel:al.nivel,teacher_id:al.teacherId||null,plano:al.plano,valor:al.valor,
-      vencimento:al.venc,financeiro:al.fin,status:al.status,faltas:al.faltas||0,
-      frequencia:al.freq||100,risco:al.risco||'low',matricula:al.matricula||null,
-      nf_emitida:al.nfEmitida||false,senha:al.senha||'Aluno2026',
-      aulas_semana:al.aulasSemana||1,
-    });
-    if(r.error) console.warn('Erro salvar aluna (RLS?):', r.error.message);
-    else console.log('Aluna salva OK:', al.nome);
-  }catch(e){ console.warn('Erro salvar aluna:',e); }
+    // Monta objeto apenas com campos que existem na tabela
+    var payload={
+      nome:al.nome,
+      email:al.email||al.nome.toLowerCase().replace(/\s+/g,'.')+('@amenina.com'),
+      telefone:al.tel||'',
+      ddi:al.ddi||'+55',
+      nivel:al.nivel||'A1',
+      teacher_id:resolveTeacherId(al.teacherId)||null,
+      plano:al.plano||'Mensal',
+      valor:parseFloat(al.valor)||320,
+      vencimento:parseInt(al.venc)||10,
+      financeiro:al.fin||'Pendente',
+      status:al.status||'Ativo',
+      faltas:parseInt(al.faltas)||0,
+      frequencia:parseInt(al.freq)||100,
+      risco:al.risco||'low',
+      nf_emitida:al.nfEmitida||false,
+    };
+    // Se tem ID local (nao uuid), buscar pelo nome no banco
+    if(al.id && al.id.length===36) payload.id=al.id;
+    var r=await sb.from('alunos').upsert(payload,{onConflict:'id'});
+    if(r.error){ console.warn('Erro salvar aluna:', r.error.message); return null; }
+    console.log('Aluna salva OK:', al.nome);
+    // Se nao tinha ID, buscar o gerado pelo banco
+    if(!payload.id){
+      var found=await sb.from('alunos').select('id').eq('nome',al.nome).eq('email',payload.email).single();
+      if(found.data){ al.id=found.data.id; console.log('ID gerado:', al.id); }
+    }
+    return al.id;
+  }catch(e){ console.warn('Erro salvar aluna:',e); return null; }
+}
+
+// Resolve ID de teacher: converte id local (t0,t1) para UUID do banco
+var _teacherIdMap={};
+async function resolveTeacherId(localId){
+  if(!localId) return null;
+  // Se ja e um UUID valido, retorna direto
+  if(localId && localId.length===36) return localId;
+  // Se temos no cache, retorna
+  if(_teacherIdMap[localId]) return _teacherIdMap[localId];
+  // Buscar pelo nome no banco
+  var teacher=TEACHERS.find(function(t){return t.id===localId;});
+  if(!teacher) return null;
+  var r=await sb.from('teachers').select('id').eq('nome',teacher.nome).single();
+  if(r.data){ _teacherIdMap[localId]=r.data.id; return r.data.id; }
+  return null;
 }
 async function salvarTeacherDB(t){
   if(!sb) return;
-  try{ await sb.from('teachers').upsert({id:t.id,nome:t.nome,email:t.email||''}); }catch(e){}
+  try{
+    // Verificar se teacher já existe pelo nome
+    var check=await sb.from('teachers').select('id').eq('nome',t.nome).single();
+    if(check.data){
+      // Já existe, guardar o UUID do banco
+      _teacherIdMap[t.id]=check.data.id;
+      return check.data.id;
+    }
+    // Inserir sem ID (banco gera uuid)
+    var r=await sb.from('teachers').insert({nome:t.nome,email:t.email||''}).select('id').single();
+    if(r.data){ _teacherIdMap[t.id]=r.data.id; console.log('Teacher salva:',t.nome,r.data.id); }
+    if(r.error) console.warn('Erro salvar teacher:', r.error.message);
+  }catch(e){ console.warn('Erro salvarTeacherDB:',e); }
 }
 async function salvarLeadDB(l){
   if(!sb) return;
@@ -559,25 +611,36 @@ async function excluirHoriarioDB(key){
 }
 async function salvarAulaDB(a){
   if(!sb) return;
+  if(!a.data){console.warn('Aula sem data, ignorando');return;}
   try{
-    var r=await sb.from('aulas').upsert({
-      id:a.id,aluno_id:a.alunoId,teacher_id:a.teacherId,data:a.data,
-      presenca:a.presenca,conteudo:a.conteudo,desempenho:a.desempenho,
-      speaking:a.speaking,participacao:a.participacao,homework:a.homework,
-      dificuldades:a.dificuldades,obs:a.obs
-    });
-    if(r.error) console.warn('Erro salvar aula (RLS?):', r.error);
+    var tId=await resolveTeacherId(a.teacherId);
+    // aluno_id: verificar se é UUID válido
+    var alunoId=(a.alunoId&&a.alunoId.length===36)?a.alunoId:null;
+    var payload={
+      aluno_id:alunoId,teacher_id:tId,data:a.data,
+      presenca:a.presenca||'Presente',conteudo:a.conteudo||null,
+      desempenho:a.desempenho||null,speaking:a.speaking||null,
+      participacao:a.participacao||null,homework:a.homework||null,
+      dificuldades:a.dificuldades||null,obs:a.obs||null
+    };
+    if(a.id&&a.id.length===36) payload.id=a.id;
+    var r=await sb.from('aulas').upsert(payload,{onConflict:'id'});
+    if(r.error) console.warn('Erro salvar aula:', r.error.message);
     else console.log('Aula salva OK');
   }catch(e){ console.warn('Erro salvarAulaDB:',e); }
 }
 async function salvarReunioDB(r){
   if(!sb) return;
+  if(!r.data||!r.hora){console.warn('Reunião sem data ou hora, ignorando');return;}
   try{
-    var res=await sb.from('reunioes').upsert({
-      id:r.id,teacher_id:r.teacherId,data:r.data,hora:r.hora,
-      local:r.local,obs:r.obs,criador_nome:r.criadorNome||''
-    });
-    if(res.error) console.warn('Erro salvar reunião (RLS?):', res.error);
+    var tId=await resolveTeacherId(r.teacherId);
+    var payload={
+      teacher_id:tId,data:r.data,hora:r.hora,
+      local:r.local||null,obs:r.obs||null,criador_nome:r.criadorNome||''
+    };
+    if(r.id&&r.id.length===36) payload.id=r.id;
+    var res=await sb.from('reunioes').upsert(payload,{onConflict:'id'});
+    if(res.error) console.warn('Erro salvar reunião:', res.error.message);
     else console.log('Reunião salva OK');
   }catch(e){ console.warn('Erro salvarReunioDB:',e); }
 }
@@ -595,11 +658,16 @@ async function salvarExtraDB(ex){
 async function salvarTarefaDB(t){
   if(!sb) return;
   try{
-    var res=await sb.from('tarefas').upsert({
-      id:t.id,titulo:t.titulo,descricao:t.descricao||'',criador_nome:t.criadorNome||'',
-      status:t.status||'pendente',prioridade:t.prioridade||'media',prazo:t.prazo||null
-    });
-    if(res.error) console.warn('Erro salvar tarefa (RLS?):', res.error);
+    var payload={
+      titulo:t.titulo,descricao:t.descricao||'',
+      criador_nome:t.criadorNome||S.userName||'',
+      para:Array.isArray(t.para)?t.para:[],
+      status:t.status||'pendente',prioridade:t.prioridade||'media',
+      prazo:t.prazo||null
+    };
+    if(t.id&&t.id.length===36) payload.id=t.id;
+    var res=await sb.from('tarefas').upsert(payload,{onConflict:'id'});
+    if(res.error) console.warn('Erro salvar tarefa:', res.error.message);
     else console.log('Tarefa salva OK');
   }catch(e){ console.warn('Erro salvarTarefaDB:',e); }
 }
