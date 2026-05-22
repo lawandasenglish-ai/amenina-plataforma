@@ -515,7 +515,7 @@ function mapTarefa(r){
 async function salvarAlunaDB(al){
   if(!sb) return;
   try{
-    await sb.from('alunos').upsert({
+    var r=await sb.from('alunos').upsert({
       id:al.id,nome:al.nome,email:al.email,telefone:al.tel||'',ddi:al.ddi||'+55',
       nivel:al.nivel,teacher_id:al.teacherId||null,plano:al.plano,valor:al.valor,
       vencimento:al.venc,financeiro:al.fin,status:al.status,faltas:al.faltas||0,
@@ -523,6 +523,8 @@ async function salvarAlunaDB(al){
       nf_emitida:al.nfEmitida||false,senha:al.senha||'Aluno2026',
       aulas_semana:al.aulasSemana||1,
     });
+    if(r.error) console.warn('Erro salvar aluna (RLS?):', r.error.message);
+    else console.log('Aluna salva OK:', al.nome);
   }catch(e){ console.warn('Erro salvar aluna:',e); }
 }
 async function salvarTeacherDB(t){
@@ -558,13 +560,67 @@ async function excluirHoriarioDB(key){
 async function salvarAulaDB(a){
   if(!sb) return;
   try{
-    await sb.from('aulas').upsert({
+    var r=await sb.from('aulas').upsert({
       id:a.id,aluno_id:a.alunoId,teacher_id:a.teacherId,data:a.data,
       presenca:a.presenca,conteudo:a.conteudo,desempenho:a.desempenho,
       speaking:a.speaking,participacao:a.participacao,homework:a.homework,
       dificuldades:a.dificuldades,obs:a.obs
     });
-  }catch(e){}
+    if(r.error) console.warn('Erro salvar aula (RLS?):', r.error);
+    else console.log('Aula salva OK');
+  }catch(e){ console.warn('Erro salvarAulaDB:',e); }
+}
+async function salvarReunioDB(r){
+  if(!sb) return;
+  try{
+    var res=await sb.from('reunioes').upsert({
+      id:r.id,teacher_id:r.teacherId,data:r.data,hora:r.hora,
+      local:r.local,obs:r.obs,criador_nome:r.criadorNome||''
+    });
+    if(res.error) console.warn('Erro salvar reunião (RLS?):', res.error);
+    else console.log('Reunião salva OK');
+  }catch(e){ console.warn('Erro salvarReunioDB:',e); }
+}
+async function salvarExtraDB(ex){
+  if(!sb) return;
+  try{
+    var res=await sb.from('extras').upsert({
+      id:ex.id,titulo:ex.titulo,descricao:ex.descricao||'',nivel:ex.nivel||'Todos',
+      duracao:ex.duracao||'',video_url:ex.videoUrl||''
+    });
+    if(res.error) console.warn('Erro salvar extra (RLS?):', res.error);
+    else console.log('Extra salvo OK');
+  }catch(e){ console.warn('Erro salvarExtraDB:',e); }
+}
+async function salvarTarefaDB(t){
+  if(!sb) return;
+  try{
+    var res=await sb.from('tarefas').upsert({
+      id:t.id,titulo:t.titulo,descricao:t.descricao||'',criador_nome:t.criadorNome||'',
+      status:t.status||'pendente',prioridade:t.prioridade||'media',prazo:t.prazo||null
+    });
+    if(res.error) console.warn('Erro salvar tarefa (RLS?):', res.error);
+    else console.log('Tarefa salva OK');
+  }catch(e){ console.warn('Erro salvarTarefaDB:',e); }
+}
+async function testarConexaoSupabase(){
+  if(!sb){ console.warn('Supabase não inicializado'); return; }
+  console.log('=== TESTE SUPABASE ===');
+  try{
+    var r=await sb.from('leads').select('id').limit(1);
+    if(r.error) console.warn('READ leads falhou:', r.error);
+    else console.log('READ leads: OK, registros:', r.data.length);
+  }catch(e){ console.warn('READ erro:', e); }
+  var testId='__test_'+Date.now();
+  try{
+    var r=await sb.from('leads').upsert({id:testId,nome:'_TESTE_',etapa:'lead'});
+    if(r.error) console.warn('WRITE falhou — RLS bloqueando INSERT:', r.error.message);
+    else{
+      console.log('WRITE leads: OK — RLS permite escrita!');
+      await sb.from('leads').delete().eq('id',testId);
+    }
+  }catch(e){ console.warn('WRITE erro:', e); }
+  console.log('=== FIM TESTE ===');
 }
 </script>
 <script>
@@ -658,7 +714,8 @@ function entrarApp(perf){
   // Renderizar imediatamente
   buildNav();
   goPage('dashboard');
-  // Carregar dados do Supabase em background
+  // Testar e carregar dados do Supabase em background
+  testarConexaoSupabase();
   carregarDados().then(function(){
     buildNav();
     // Re-renderizar apenas a página atual para refletir dados do banco
@@ -1827,7 +1884,7 @@ function salvarReuniao(){
   var newR={id:uuid(),teacherId:document.getElementById('re-teacher').value,
     data:document.getElementById('re-data').value,hora:document.getElementById('re-hora').value,
     local:document.getElementById('re-local').value,obs:document.getElementById('re-obs').value,criadorNome:S.userName};
-  REUNIOES.push(newR);closeModal();showToast('Reunião marcada! ✅');
+  REUNIOES.push(newR);salvarReunioDB(newR);closeModal();showToast('Reunião marcada! ✅');
   renderReunioes(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
@@ -1858,10 +1915,10 @@ function mNovaExtra(){
 function salvarExtra(){
   var titulo=(document.getElementById('ex-titulo').value||'').trim();
   if(!titulo){showToast('Preencha o título.');return;}
-  EXTRAS.push({id:uuid(),titulo:titulo,nivel:document.getElementById('ex-nivel').value,
+  var novoExtra={id:uuid(),titulo:titulo,nivel:document.getElementById('ex-nivel').value,
     duracao:document.getElementById('ex-dur').value,descricao:document.getElementById('ex-desc').value,
-    videoUrl:document.getElementById('ex-url').value});
-  closeModal();showToast('Aula extra adicionada! ✅');
+    videoUrl:document.getElementById('ex-url').value};
+  EXTRAS.push(novoExtra);salvarExtraDB(novoExtra);closeModal();showToast('Aula extra adicionada! ✅');
   renderExtras(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
@@ -2004,15 +2061,15 @@ function mNovaTarefa(){
 function salvarTarefa(){
   var titulo=(document.getElementById('ta-titulo').value||'').trim();
   if(!titulo){showToast('Coloque um título.');return;}
-  TAREFAS.push({id:uuid(),titulo:titulo,descricao:document.getElementById('ta-desc').value||'',
+  var novaTarefa={id:uuid(),titulo:titulo,descricao:document.getElementById('ta-desc').value||'',
     prioridade:document.getElementById('ta-prior').value,prazo:document.getElementById('ta-prazo').value||'',
-    status:'pendente',criadorNome:S.userName});
-  closeModal();showToast('Tarefa criada! ✅');
+    status:'pendente',criadorNome:S.userName};
+  TAREFAS.push(novaTarefa);salvarTarefaDB(novaTarefa);closeModal();showToast('Tarefa criada! ✅');
   renderTarefas(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 function concluirTarefa(id){
   var t=TAREFAS.find(function(x){return x.id===id;});
-  if(t){t.status=t.status==='concluido'?'pendente':'concluido';renderTarefas(document.getElementById('pc'),document.getElementById('tb-actions'));}
+  if(t){t.status=t.status==='concluido'?'pendente':'concluido';salvarTarefaDB(t);renderTarefas(document.getElementById('pc'),document.getElementById('tb-actions'));}
 }
 </script>
 <script>
