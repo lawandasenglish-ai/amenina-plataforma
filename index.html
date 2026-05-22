@@ -440,10 +440,17 @@ async function carregarDados(){
     ]);
     if(rAl.data&&rAl.data.length) ALUNOS=rAl.data.map(mapAluno);
     if(rTe.data&&rTe.data.length){
-      // Merge: manter teachers locais (t0-t7) e adicionar do banco
-      rTe.data.map(mapTeacher).forEach(function(dt){
-        if(!TEACHERS.find(function(t){return t.id===dt.id;})) TEACHERS.push(dt);
+      // Usar teachers do banco - mas manter as locais pelo nome para compatibilidade
+      var dbTeachers=rTe.data.map(mapTeacher);
+      // Para cada teacher local, verificar se existe no banco pelo NOME
+      TEACHERS.forEach(function(local){
+        var noDb=dbTeachers.find(function(db){return db.nome===local.nome;});
+        if(noDb){
+          // Sincronizar ID local com o ID do banco
+          local._dbId=noDb.id;
+        }
       });
+      // Não adicionar teachers extras do banco - usar apenas as locais
     } else {
       // Banco vazio - salvar teachers locais
       TEACHERS.forEach(function(t){ salvarTeacherDB(t); });
@@ -525,11 +532,13 @@ async function salvarTeacherDB(t){
 async function salvarLeadDB(l){
   if(!sb) return;
   try{
-    await sb.from('leads').upsert({
+    var result=await sb.from('leads').upsert({
       id:l.id,nome:l.nome,email:l.email,telefone:l.tel,ddi:l.ddi||'+55',
       origem:l.origem,nivel:l.nivel,objetivo:l.objetivo,etapa:l.etapa,obs:l.obs
-    });
-  }catch(e){}
+    },{onConflict:'id'});
+    if(result.error){ console.warn('Erro salvar lead:',result.error); }
+    else{ console.log('Lead salvo OK:',l.nome,l.etapa); }
+  }catch(e){ console.warn('Erro salvarLeadDB:',e); }
 }
 async function salvarHorarioDB(key, slot){
   if(!sb) return;
@@ -650,7 +659,13 @@ function entrarApp(perf){
   buildNav();
   goPage('dashboard');
   // Carregar dados do Supabase em background
-  carregarDados().then(function(){buildNav();goPage(S.page);}).catch(function(e){console.warn('Supabase:',e);});
+  carregarDados().then(function(){
+    buildNav();
+    // Re-renderizar apenas a página atual para refletir dados do banco
+    var pc=document.getElementById('pc');
+    var tba=document.getElementById('tb-actions');
+    if(pc && tba) goPage(S.page);
+  }).catch(function(e){console.warn('Supabase:',e);});
 }
 
 function alternarPerfil(){
@@ -1494,10 +1509,34 @@ function openLead(id){
     var bs=document.getElementById('btn-mover-etapa');
     if(bs) bs.addEventListener('click',function(){moverEtapa(window._leadId);});
     var bd=document.getElementById('btn-del-lead');
-    if(bd) bd.addEventListener('click',function(){
+    if(bd) bd.addEventListener('click',async function(){
       if(confirm('Excluir este lead?')){
-        LEADS=LEADS.filter(function(x){return x.id!==window._leadId;});
-        closeModal();showToast('Lead excluído.');
+        var idParaDeletar=window._leadId;
+        // Excluir do Supabase PRIMEIRO, aguardar confirmação
+        if(sb){
+          try{
+            var result=await sb.from('leads').delete().eq('id',idParaDeletar);
+            if(result.error){
+              console.warn('Erro ao excluir lead do Supabase:',result.error);
+              showToast('Erro ao excluir. Verifique o Supabase (RLS).');
+              return;
+            }
+            // Verificar se realmente deletou (RLS pode bloquear silenciosamente)
+            var check=await sb.from('leads').select('id').eq('id',idParaDeletar);
+            if(check.data && check.data.length>0){
+              console.warn('RLS pode estar bloqueando o delete. Lead ainda existe no banco.');
+              showToast('Erro: lead não foi removido do banco. Verifique as políticas RLS no Supabase.');
+              return;
+            }
+          }catch(e){
+            console.warn('Erro ao excluir lead do Supabase:',e);
+            showToast('Erro ao excluir. Tente novamente.');
+            return;
+          }
+        }
+        // Só remove da memória local APÓS confirmação do banco
+        LEADS=LEADS.filter(function(x){return x.id!==idParaDeletar;});
+        closeModal();showToast('Lead excluído. ✅');
         renderCRM(document.getElementById('pc'),document.getElementById('tb-actions'));
       }
     });
@@ -1584,20 +1623,44 @@ function renderMatriculas(c,a){
 // ══════════════════════════════════════════════════════
 // AULAS / RELATÓRIOS
 // ══════════════════════════════════════════════════════
+var _aulasFiltroAluna='';
 function renderAulas(c,a){
   a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(mNovaAula())"><i class="ti ti-plus"></i> Registrar aula</button>';
   var lista=S.perfil==='teacher'
     ?AULAS.filter(function(r){return r.teacherId===S.teacherId;})
     :AULAS;
   lista=lista.slice().sort(function(a,b){return b.data.localeCompare(a.data);});
-  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-book"></i><h3>Relatórios de aulas</h3></div>'
-    +(lista.length?'<table class="tbl"><tr><th>Aluna</th><th>Data</th><th>Conteúdo</th><th>Presença</th><th>Desempenho</th></tr>'
-      +lista.map(function(r){
-        var al=ALUNOS.find(function(a){return a.id===r.alunoId;});
-        return '<tr><td class="nm">'+(al?al.nome:'—')+'</td><td>'+fmtDateBr(r.data)+'</td><td>'+r.conteudo+'</td><td>'+bdg(r.presenca)+'</td><td>'+bdg(r.desempenho)+'</td></tr>';
-      }).join('')+'</table>'
+  // Filtro por aluna
+  var alunaOpts='<option value="">Todas as alunas</option>'
+    +byName(myAlunos()).map(function(al){return '<option value="'+al.id+'"'+(al.id===_aulasFiltroAluna?' selected':'')+'>'+al.nome+'</option>';}).join('');
+  if(_aulasFiltroAluna) lista=lista.filter(function(r){return r.alunoId===_aulasFiltroAluna;});
+  c.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+    +'<label style="font-size:11px;font-weight:700;color:var(--crose);white-space:nowrap">Filtrar por aluna:</label>'
+    +'<select id="filtro-aluna" style="padding:7px 12px;border-radius:8px;border:1.5px solid rgba(121,20,40,.18);background:#fff;color:var(--cd);font-size:12px;font-family:var(--font-sans);outline:none">'+alunaOpts+'</select>'
+    +'</div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-book"></i><h3>Histórico de aulas ('+lista.length+')</h3></div>'
+    +(lista.length
+      ?lista.map(function(r){
+          var al=ALUNOS.find(function(a){return a.id===r.alunoId;});
+          return '<div style="border:1px solid rgba(121,20,40,.07);border-radius:10px;padding:14px;margin-bottom:10px;background:rgba(121,20,40,.02)">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+            +'<div style="font-weight:700;color:var(--cd);font-size:13px">'+(al?al.nome:'—')+'</div>'
+            +'<div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'+bdg(r.presenca)+'</div>'
+            +'</div>'
+            +(r.conteudo?'<div style="font-size:12px;color:var(--cd);margin-bottom:4px">📖 <strong>Conteúdo:</strong> '+r.conteudo+'</div>':'')
+            +(r.desempenho?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">⭐ Desempenho: '+r.desempenho+'</div>':'')
+            +(r.speaking?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">🗣️ Speaking: '+r.speaking+'</div>':'')
+            +(r.homework?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">📝 Homework: '+r.homework+'</div>':'')
+            +(r.dificuldades?'<div style="font-size:11px;color:#c0392b">⚠️ Dificuldades: '+r.dificuldades+'</div>':'')
+            +'</div>';
+        }).join('')
       :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhum relatório ainda.</div>')
     +'</div>';
+  // Listener no filtro
+  setTimeout(function(){
+    var f=document.getElementById('filtro-aluna');
+    if(f)f.addEventListener('change',function(){_aulasFiltroAluna=this.value;renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));});
+  },0);
 }
 
 function mNovaAula(){
