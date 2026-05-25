@@ -411,6 +411,17 @@ var HORARIOS={};
 var NOTAS=[];
 var METAS={leads:{meta:40,atual:0},matriculas:{meta:15,atual:0},aulas_exp:{meta:20,atual:0},followups:{meta:25,atual:0},conversao:{meta:45,atual:0}};
 var VENC=[5,10,15,20,30];
+
+// TABELA DE PREÇOS OFICIAL
+var PRECOS={
+  individual:{1:468,2:702,3:923,4:1235},
+  turma:{2:325},
+  dupla:{1:544,2:936,3:1287}
+};
+function calcularValor(tipo,aulasSemana){
+  var t=PRECOS[tipo]||PRECOS['individual'];
+  return t[aulasSemana]||t[Object.keys(t)[0]]||0;
+}
 var NIVEIS=['A1','A2','B1','B2','C1','C2'];
 var ETAPAS=['lead','contato','aula_exp','followup','matriculado','perdido'];
 var _horariosSelec=[];
@@ -487,7 +498,8 @@ function mapAluno(r){
     venc:r.vencimento||10,fin:r.financeiro||'Pendente',status:r.status||'Ativo',
     faltas:r.faltas||0,freq:r.frequencia||100,risco:r.risco||'low',
     matricula:r.matricula||'',fichaUrl:null,
-    nfEmitida:r.nf_emitida||false,comentarios:[]};
+    nfEmitida:r.nf_emitida||false,tipo:r.tipo||'individual',
+    desconto:r.desconto||0,valorCheio:r.valor_cheio||r.valor||0,comentarios:[]};
 }
 function mapTeacher(r){
   return {id:r.id,nome:r.nome,email:r.email||''};
@@ -523,7 +535,7 @@ async function salvarAlunaDB(al){
     // Monta objeto apenas com campos que existem na tabela
     var payload={
       nome:al.nome,
-      email:al.email||al.nome.toLowerCase().replace(/\s+/g,'.')+('@amenina.com'),
+      email:al.email||(al.nome.toLowerCase().replace(/\s+/g,'.')+'@amenina.com'),
       telefone:al.tel||'',
       ddi:al.ddi||'+55',
       nivel:al.nivel||'A1',
@@ -537,6 +549,9 @@ async function salvarAlunaDB(al){
       frequencia:parseInt(al.freq)||100,
       risco:al.risco||'low',
       nf_emitida:al.nfEmitida||false,
+      tipo:al.tipo||'individual',
+      desconto:parseFloat(al.desconto)||0,
+      valor_cheio:parseFloat(al.valorCheio)||parseFloat(al.valor)||0,
     };
     // Se tem ID local (nao uuid), buscar pelo nome no banco
     if(al.id && al.id.length===36) payload.id=al.id;
@@ -1082,10 +1097,14 @@ function renderUsuarios(c,a){
   c.innerHTML=eqHtml+alHtml;
 }
 
-function excluirAluna(id){
-  if(!confirm('Excluir esta aluna?')) return;
+async function excluirAluna(id){
+  if(!confirm('Excluir esta aluna permanentemente? Esta ação não pode ser desfeita.')) return;
+  if(sb){
+    var r=await sb.from('alunos').delete().eq('id',id);
+    if(r.error){ showToast('Erro ao excluir do banco.'); console.warn(r.error); return; }
+  }
   ALUNOS=ALUNOS.filter(function(a){return a.id!==id;});
-  showToast('Aluna excluída.');
+  showToast('Aluna excluída. ✅');
   renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
@@ -1165,11 +1184,14 @@ function openCadastrarAluna(){
     +'<div class="fst">Dados pedagógicos</div>'
     +'<div class="fgrid"><div class="fg"><label>Nível</label><select id="ca-nivel"><option value="A1">A1 — Iniciante</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option></select></div>'
     +'<div class="fg"><label>Teacher responsável</label><select id="ca-teacher">'+tOpts+'</select></div></div>'
-    +'<div class="fgrid"><div class="fg"><label>Aulas por semana</label><select id="ca-aulas-semana"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option></select></div>'
-    +'<div class="fg"><label>Horários disponíveis (clique para selecionar)</label><div id="ca-horarios-disp" style="background:rgba(121,20,40,.03);border-radius:8px;padding:8px;min-height:40px;font-size:11px;color:var(--crose)">Selecione uma teacher para ver horários.</div></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>Tipo de aula</label><select id="ca-tipo" onchange="atualizarValorAuto()"><option value="individual">👩‍💻 Individual</option><option value="dupla">👯 Em dupla</option><option value="turma">👩‍🏫 Turma</option></select></div>'
+    +'<div class="fg"><label>Aulas por semana</label><select id="ca-aulas-semana" onchange="atualizarValorAuto()"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option></select></div></div>'
+    +'<div class="fg" style="margin:0 0 12px"><label>Horários disponíveis (clique para selecionar)</label><div id="ca-horarios-disp" style="background:rgba(121,20,40,.03);border-radius:8px;padding:8px;min-height:40px;font-size:11px;color:var(--crose)">Selecione uma teacher para ver horários.</div></div>'
     +'<div class="fst">Dados financeiros</div>'
     +'<div class="fgrid"><div class="fg"><label>Plano</label><select id="ca-plano"><option value="Mensal">Mensal</option><option value="Trimestral">Trimestral</option><option value="Semestral">Semestral</option><option value="Anual">Anual</option><option value="Publicidade">🎁 Publicidade</option></select></div>'
-    +'<div class="fg"><label>Valor (R$)</label><input type="number" id="ca-valor" placeholder="320"></div>'
+    +'<div class="fg"><label>Valor cheio (R$)</label><input type="number" id="ca-valor" placeholder="0" readonly style="background:#f5f5f5;cursor:not-allowed"></div>'
+    +'<div class="fg"><label>Desconto (%)</label><input type="number" id="ca-desconto" placeholder="0" min="0" max="100" oninput="atualizarValorComDesconto()"></div>'
+    +'<div class="fg"><label>Valor final (R$)</label><input type="number" id="ca-valor-final" placeholder="0" readonly style="background:#f0fff4;font-weight:700;cursor:not-allowed"></div>'
     +'<div class="fg"><label>Vencimento</label><select id="ca-venc">'+vOpts+'</select></div>'
     +'<div class="fg"><label>Status financeiro</label><select id="ca-fin"><option value="Pendente">Pendente</option><option value="Pago">Pago</option><option value="Atrasado">Atrasado</option></select></div></div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
@@ -1178,11 +1200,36 @@ function openCadastrarAluna(){
   setTimeout(function(){
     var st=document.getElementById('ca-teacher');
     var sa=document.getElementById('ca-aulas-semana');
+    var ti=document.getElementById('ca-tipo');
     if(st){ st.addEventListener('change',atualizarHorariosDisp); atualizarHorariosDisp(); }
-    if(sa){ sa.addEventListener('change',function(){_horariosSelec=[];atualizarHorariosDisp();}); }
+    if(sa){ sa.addEventListener('change',function(){_horariosSelec=[];atualizarHorariosDisp();atualizarValorAuto();}); }
+    if(ti){ ti.addEventListener('change',function(){atualizarValorAuto();}); }
+    atualizarValorAuto();
   },0);
 }
 
+function atualizarValorAuto(){
+  var tipo=(document.getElementById('ca-tipo')||{value:'individual'}).value;
+  var aulas=parseInt((document.getElementById('ca-aulas-semana')||{value:'1'}).value)||1;
+  var valor=calcularValor(tipo,aulas);
+  var vEl=document.getElementById('ca-valor');
+  var vfEl=document.getElementById('ca-valor-final');
+  if(vEl) vEl.value=valor;
+  if(vfEl) vfEl.value=valor;
+  var dEl=document.getElementById('ca-desconto');
+  if(dEl) dEl.value='';
+}
+function atualizarValorComDesconto(){
+  var vEl=document.getElementById('ca-valor');
+  var dEl=document.getElementById('ca-desconto');
+  var vfEl=document.getElementById('ca-valor-final');
+  if(!vEl||!dEl||!vfEl) return;
+  var valorCheio=parseFloat(vEl.value)||0;
+  var desconto=parseFloat(dEl.value)||0;
+  desconto=Math.min(Math.max(desconto,0),100);
+  var valorFinal=Math.round(valorCheio*(1-desconto/100));
+  vfEl.value=valorFinal;
+}
 function atualizarHorariosDisp(){
   var div=document.getElementById('ca-horarios-disp');
   var stEl=document.getElementById('ca-teacher');
@@ -1253,14 +1300,17 @@ function salvarAluna(){
   if(!senha){showToast('Crie uma senha para a aluna.');return;}
   if(ALUNOS.find(function(a){return a.email.toLowerCase()===email.toLowerCase();})){showToast('Email já cadastrado.');return;}
   var tid=document.getElementById('ca-teacher').value;
-  var valor=parseInt(document.getElementById('ca-valor').value)||320;
+  var tipo=(document.getElementById('ca-tipo')||{value:'individual'}).value;
+  var valorCheio=parseFloat(document.getElementById('ca-valor').value)||0;
+  var desconto=parseFloat((document.getElementById('ca-desconto')||{value:'0'}).value)||0;
+  var valor=parseFloat((document.getElementById('ca-valor-final')||{value:String(valorCheio)}).value)||valorCheio;
   var ddiEl=document.getElementById('ca-ddi');
   var newId=uuid();
   var aulasSemana=parseInt((document.getElementById('ca-aulas-semana')||{value:'1'}).value)||1;
   var newAl={id:newId,nome:nome,email:email,ddi:ddiEl?ddiEl.value:'+55',
     tel:(document.getElementById('ca-tel').value||''),senha:senha,
     nivel:document.getElementById('ca-nivel').value,teacherId:tid,
-    aulasSemana:aulasSemana,plano:document.getElementById('ca-plano').value,valor:valor,
+    tipo:tipo,aulasSemana:aulasSemana,plano:document.getElementById('ca-plano').value,valor:valor,valorCheio:valorCheio,desconto:desconto,
     venc:parseInt(document.getElementById('ca-venc').value),
     fin:document.getElementById('ca-fin').value,status:'Ativo',
     faltas:0,freq:100,risco:'low',matricula:new Date().toLocaleDateString('pt-BR'),
@@ -1888,7 +1938,7 @@ function renderPagamentos(soloInadimplentes){
     +'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>'+(soloInadimplentes?'Inadimplentes':'Pagamentos')+'</h3></div>'
     +(lista.length?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr>'
       +lista.map(function(al){
-        return '<tr><td class="nm">'+al.nome+'</td><td>'+al.plano+'</td><td>R$ '+al.valor+'</td><td>Dia '+al.venc+'</td><td>'+bdg(al.fin)+'</td>'
+        return '<tr><td class="nm">'+al.nome+(al.desconto>0?'<span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;margin-left:4px">-'+al.desconto+'%</span>':'')+'</td><td>'+al.plano+'</td><td>R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'')+'</td><td>Dia '+al.venc+'</td><td>'+bdg(al.fin)+'</td>'
           +'<td style="display:flex;gap:4px">'
           +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
           +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
