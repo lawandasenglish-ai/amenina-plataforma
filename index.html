@@ -1098,14 +1098,14 @@ function renderDashboard(c,a){
       +'<div class="sc ok"><div class="sl">Recebido</div><div class="sv">R$ '+totalPago.toLocaleString('pt-BR')+'</div></div>'
       +'<div class="sc"><div class="sl">Previsto</div><div class="sv">R$ '+totalPrev.toLocaleString('pt-BR')+'</div></div>'
       +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+inad.length+'</div></div>'
-      +'<div class="sc '+(negat.length?'warn':'')+'" style="cursor:pointer" onclick="goPage('negativacao')"><div class="sl">Para negativar</div><div class="sv">'+negat.length+'</div></div>'
+      +'<div class="sc '+(negat.length?'warn':'')+'" style="cursor:pointer" onclick="goPage(\'negativacao\')"><div class="sl">Para negativar</div><div class="sv">'+negat.length+'</div></div>'
       +'</div>'
       +(vencHoje.length?'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>Vencimentos hoje — Dia '+hoje+'</h3></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Status</th><th></th></tr>'
         +vencHoje.map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+bdg(al.fin)+'</td>'
           +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button></td></tr>';}).join('')
         +'</table></div>':'')
-      +(inad.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>Inadimplentes</h3><button class="cha" onclick="goPage('inadimplencia')">Ver todos →</button></div>'
+      +(inad.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>Inadimplentes</h3><button class="cha" onclick="goPage(\'inadimplencia\')">Ver todos →</button></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Dias</th></tr>'
         +inad.slice(0,5).sort(function(a,b){return (b.diasInadimplente||0)-(a.diasInadimplente||0);}
         ).map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+(al.diasInadimplente||0)+'d</td></tr>';}).join('')
