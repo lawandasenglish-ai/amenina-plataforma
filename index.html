@@ -499,7 +499,10 @@ function mapAluno(r){
     faltas:r.faltas||0,freq:r.frequencia||100,risco:r.risco||'low',
     matricula:r.matricula||'',fichaUrl:null,
     nfEmitida:r.nf_emitida||false,tipo:r.tipo||'individual',
-    desconto:r.desconto||0,valorCheio:r.valor_cheio||r.valor||0,comentarios:[]};
+    desconto:r.desconto||0,valorCheio:r.valor_cheio||r.valor||0,
+    endereco:r.endereco||'',cidade:r.cidade||'',estado:r.estado||'',pais:r.pais||'Brasil',cep:r.cep||'',
+    diasInadimplente:r.dias_inadimplente||0,dataAtraso:r.data_atraso||null,
+    nfUrl:r.nf_url||null,comentarios:[]};
 }
 function mapTeacher(r){
   return {id:r.id,nome:r.nome,email:r.email||''};
@@ -554,6 +557,8 @@ async function salvarAlunaDB(al){
       tipo:al.tipo||'individual',
       desconto:parseFloat(al.desconto)||0,
       valor_cheio:parseFloat(al.valorCheio)||parseFloat(al.valor)||0,
+      endereco:al.endereco||null,cidade:al.cidade||null,estado:al.estado||null,pais:al.pais||'Brasil',cep:al.cep||null,
+      dias_inadimplente:al.diasInadimplente||0,data_atraso:al.dataAtraso||null,nf_url:al.nfUrl||null,
     };
     // Se tem ID local (nao uuid), buscar pelo nome no banco
     if(al.id && al.id.length===36) payload.id=al.id;
@@ -863,6 +868,7 @@ var NAVS={
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {s:'Financeiro'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;}},
+    {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {s:'Gestão Pessoal'},{id:'notas',l:'Minhas Notas',ic:'ti-notebook'},
     {id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
@@ -891,6 +897,7 @@ var NAVS={
     {s:'Financeiro'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;}},
+    {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {s:'Alunos'},{id:'alunos',l:'Situação Financeira',ic:'ti-users'},
   ],
@@ -907,7 +914,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  inadimplencia:'Inadimplência',nf:'Notas Fiscais',notas:'Minhas Notas',tarefas:'Tarefas'};
+  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',notas:'Minhas Notas',tarefas:'Tarefas'};
 
 function buildNav(){
   var items=NAVS[S.perfil]||[];
@@ -943,7 +950,8 @@ function goPage(id){
     dashboard:renderDashboard,usuarios:renderUsuarios,alunos:renderAlunos,
     crm:renderCRM,funil:renderFunil,matriculas:renderMatriculas,metas:renderMetas,
     teachers:renderTeachers,pagamentos:function(){renderPagamentos(false);},
-    inadimplencia:function(){renderPagamentos(true);},nf:renderNF,
+    inadimplencia:function(){renderPagamentos(true);},
+  negativacao:renderNegativacao,nf:renderNF,
     retencao:renderRetencao,aulas:renderAulas,frequencia:renderFrequencia,
     extras:renderExtras,reunioes:renderReunioes,tarefas:renderTarefas,
     notas:renderNotas,horarios:renderHorarios,
@@ -1016,6 +1024,23 @@ function getFeedbackSemana(){var d=new Date().getDay();return d===1||d===4;}
 // ══════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════
+function renderAlertasPresenca(){
+  var desap=ALUNOS.filter(function(a){return a.status==='Desaparecido';});
+  var atencao=ALUNOS.filter(function(a){return a.status==='Atenção';});
+  if(!desap.length&&!atencao.length) return '';
+  var html='<div class="card" style="border:2px solid #ef4444;margin-top:12px"><div class="ch"><i class="ti ti-alert-circle" style="color:#ef4444"></i><h3 style="color:#ef4444">Alertas de Presença</h3></div>';
+  if(desap.length){
+    html+='<div style="padding:8px 16px;font-size:12px;font-weight:700;color:#ef4444">🚨 Desaparecidos ('+desap.length+')</div>'
+      +'<table class="tbl"><tr><th>Aluno</th><th>Faltas</th><th>Teacher</th></tr>'
+      +desap.map(function(al){return '<tr style="background:rgba(239,68,68,.05)"><td class="nm">'+al.nome+'</td><td>'+al.faltas+'</td><td>'+getTeacher(al.teacherId).nome+'</td></tr>';}).join('')+'</table>';
+  }
+  if(atencao.length){
+    html+='<div style="padding:8px 16px;font-size:12px;font-weight:700;color:#f59e0b">⚠️ Merecem Atenção ('+atencao.length+')</div>'
+      +'<table class="tbl"><tr><th>Aluno</th><th>Faltas</th><th>Teacher</th></tr>'
+      +atencao.map(function(al){return '<tr style="background:rgba(245,158,11,.05)"><td class="nm">'+al.nome+'</td><td>'+al.faltas+'</td><td>'+getTeacher(al.teacherId).nome+'</td></tr>';}).join('')+'</table>';
+  }
+  return html+'</div>';
+}
 function renderDashboard(c,a){
   var now=new Date();
   var welcome='<div style="margin-bottom:16px"><div style="font-size:13px;color:var(--crose)">Bem-vinda de volta,</div><div style="font-family:var(--font-serif);font-size:28px;color:var(--cd)">'+S.userName+'! 👋</div></div>';
@@ -1058,13 +1083,42 @@ function renderDashboard(c,a){
         +'<table class="tbl"><tr><th>Nome</th><th>Nível</th><th>Freq.</th><th>Financeiro</th></tr>'
         +meus.map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>'+al.nivel+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td></tr>';}).join('')
         +'</table></div>':'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna vinculada ainda.</div>');
+  } else if(S.perfil==='financeiro'){
+    atualizarDiasInadimplente();
+    var totalPago=ALUNOS.reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
+    var totalPrev=ALUNOS.filter(function(a){return a.status!=='Desaparecido';}).reduce(function(s,a){return s+a.valor;},0);
+    var inad=ALUNOS.filter(function(a){return a.fin==='Atrasado';});
+    var negat=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;});
+    // Mensalidades de hoje (vencimento = dia de hoje)
+    var hoje=new Date().getDate();
+    var vencHoje=ALUNOS.filter(function(a){return a.venc===hoje&&a.fin!=='Pago'&&a.status!=='Desaparecido';})
+      .sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});
+    c.innerHTML=welcome
+      +'<div class="sg g4">'
+      +'<div class="sc ok"><div class="sl">Recebido</div><div class="sv">R$ '+totalPago.toLocaleString('pt-BR')+'</div></div>'
+      +'<div class="sc"><div class="sl">Previsto</div><div class="sv">R$ '+totalPrev.toLocaleString('pt-BR')+'</div></div>'
+      +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+inad.length+'</div></div>'
+      +'<div class="sc '+(negat.length?'warn':'')+'" style="cursor:pointer" onclick="goPage('negativacao')"><div class="sl">Para negativar</div><div class="sv">'+negat.length+'</div></div>'
+      +'</div>'
+      +(vencHoje.length?'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>Vencimentos hoje — Dia '+hoje+'</h3></div>'
+        +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Status</th><th></th></tr>'
+        +vencHoje.map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+bdg(al.fin)+'</td>'
+          +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button></td></tr>';}).join('')
+        +'</table></div>':'')
+      +(inad.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>Inadimplentes</h3><button class="cha" onclick="goPage('inadimplencia')">Ver todos →</button></div>'
+        +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Dias</th></tr>'
+        +inad.slice(0,5).sort(function(a,b){return (b.diasInadimplente||0)-(a.diasInadimplente||0);}
+        ).map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+(al.diasInadimplente||0)+'d</td></tr>';}).join('')
+        +'</table></div>':'')
+      +renderAlertasPresenca();
   } else {
     c.innerHTML=welcome
       +'<div class="sg g3">'
       +'<div class="sc"><div class="sl">Alunas</div><div class="sv">'+ALUNOS.length+'</div></div>'
       +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length+'</div></div>'
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
-      +'</div>';
+      +'</div>'
+      +(S.perfil!=='comercial'?renderAlertasPresenca():'');
   }
 }
 </script>
@@ -1388,6 +1442,11 @@ function openEditAluna(id){
     +'<div class="fgrid"><div class="fg"><label>Nome</label><input id="ea-nome" value="'+al.nome+'"></div>'
     +'<div class="fg"><label>Email</label><input id="ea-email" value="'+al.email+'"></div></div>'
     +'<div class="fgrid"><div class="fg"><label>WhatsApp</label><input id="ea-tel" value="'+(al.tel||'')+'"></div>'
+    +'<div class="fg"><label>País</label><input id="ea-pais" value="'+(al.pais||'Brasil')+'"></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>Endereço</label><input id="ea-endereco" value="'+(al.endereco||'')+'"></div>'
+    +'<div class="fg"><label>Cidade</label><input id="ea-cidade" value="'+(al.cidade||'')+'"></div>'
+    +'<div class="fg"><label>Estado/Região</label><input id="ea-estado" value="'+(al.estado||'')+'"></div>'
+    +'<div class="fg"><label>CEP/ZIP</label><input id="ea-cep" value="'+(al.cep||'')+'"></div>'
     +'<div class="fg"><label>Nova senha (vazio = manter)</label><input type="password" id="ea-senha" placeholder="Nova senha"></div></div>'
     +'<div class="fst">Pedagógico</div>'
     +'<div class="fgrid"><div class="fg"><label>Nível</label><select id="ea-nivel">'+nOpts+'</select></div>'
@@ -1487,6 +1546,11 @@ function salvarEditAluna(){
   if(g('ea-aulas')) al.aulasSemana=parseInt(g('ea-aulas').value)||al.aulasSemana;
   if(g('ea-status')) al.status=g('ea-status').value;
   if(g('ea-plano')) al.plano=g('ea-plano').value;
+  if(g('ea-pais')) al.pais=g('ea-pais').value;
+  if(g('ea-endereco')) al.endereco=g('ea-endereco').value;
+  if(g('ea-cidade')) al.cidade=g('ea-cidade').value;
+  if(g('ea-estado')) al.estado=g('ea-estado').value;
+  if(g('ea-cep')) al.cep=g('ea-cep').value;
   if(g('ea-valor')) al.valor=parseInt(g('ea-valor').value)||al.valor;
   if(g('ea-venc')) al.venc=parseInt(g('ea-venc').value)||al.venc;
   if(g('ea-fin')) al.fin=g('ea-fin').value;
@@ -1903,7 +1967,32 @@ function salvarAula(){
     obs:document.getElementById('na-obs').value||''};
   // Atualizar presença da aluna
   var al=ALUNOS.find(function(a){return a.id===alunoId;});
-  if(al&&newAula.presenca==='Faltou') al.faltas=(al.faltas||0)+1;
+  if(al&&newAula.presenca==='Faltou'){
+    al.faltas=(al.faltas||0)+1;
+    // Contar faltas SEGUIDAS
+    var aulasOrdenadas=AULAS.filter(function(x){return x.alunoId===al.id;})
+      .sort(function(a,b){return b.data.localeCompare(a.data);});
+    var faltasSeguidas=0;
+    for(var i=0;i<aulasOrdenadas.length;i++){
+      if(aulasOrdenadas[i].presenca==='Faltou') faltasSeguidas++;
+      else break;
+    }
+    faltasSeguidas++; // conta a aula atual
+    if(faltasSeguidas>=4){
+      al.status='Desaparecido';
+      showToast('⚠️ '+al.nome+' marcado como DESAPARECIDO ('+faltasSeguidas+' faltas seguidas)');
+    } else if(al.faltas>=2){
+      if(al.status!=='Desaparecido') al.status='Atenção';
+    }
+    salvarAlunaDB(al);
+  } else if(al&&newAula.presenca==='Presente'){
+    // Ao retornar, limpar status de desaparecido/atenção se faltas ok
+    if(al.status==='Desaparecido'||al.status==='Atenção'){
+      al.status='Ativo';
+      showToast('✅ '+al.nome+' voltou! Status restaurado para Ativo.');
+      salvarAlunaDB(al);
+    }
+  }
   AULAS.unshift(newAula);
   salvarAulaDB(newAula);
   closeModal();showToast('Aula registrada! ✅');
@@ -1914,7 +2003,7 @@ function salvarAula(){
 // ALUNOS
 // ══════════════════════════════════════════════════════
 function renderAlunos(c,a){
-  if(S.perfil==='gestao') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
+  if(S.perfil==='gestao'||S.perfil==='financeiro') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
   var lista=myAlunos();
   c.innerHTML='<div class="sg g4">'
     +'<div class="sc"><div class="sl">Total</div><div class="sv">'+lista.length+'</div></div>'
@@ -1960,30 +2049,91 @@ function renderRetencao(c,a){
 // ══════════════════════════════════════════════════════
 function renderPagamentos(soloInadimplentes){
   var c=document.getElementById('pc');
-  var lista=soloInadimplentes?byName(ALUNOS.filter(function(a){return a.fin==='Atrasado';})):byName(ALUNOS);
-  var total=lista.reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
-  var previsto=lista.reduce(function(s,a){return s+a.valor;},0);
+  atualizarDiasInadimplente();
+  // Filtrar: excluir desaparecidos e alunos com +15 dias atraso (só se não for aba inadimplência)
+  var listaBase=ALUNOS.filter(function(a){
+    if(a.status==='Desaparecido') return false;
+    if(!soloInadimplentes && a.fin==='Atrasado' && a.diasInadimplente>15) return false;
+    return true;
+  });
+  var lista=soloInadimplentes
+    ?listaBase.filter(function(a){return a.fin==='Atrasado';})
+    :listaBase;
+  var total=ALUNOS.reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
+  var previsto=ALUNOS.filter(function(a){return a.status!=='Desaparecido';}).reduce(function(s,a){return s+a.valor;},0);
+  var inadimplentes=ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;
+  // Agrupar por vencimento
+  var grupos=[5,10,15,20,30];
+  var porVenc={};
+  grupos.forEach(function(v){porVenc[v]=[];});
+  lista.forEach(function(al){
+    var v=parseInt(al.venc)||10;
+    if(!porVenc[v]) porVenc[v]=[];
+    porVenc[v].push(al);
+  });
+  // Ordenar cada grupo alfabeticamente
+  grupos.forEach(function(v){
+    porVenc[v].sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});
+  });
+  var tabelaHtml='';
+  grupos.forEach(function(v){
+    var gr=porVenc[v];
+    if(!gr||!gr.length) return;
+    tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+'</td></tr>';
+    gr.forEach(function(al){
+      var badge=al.desconto>0?'<span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;margin-left:4px">-'+al.desconto+'%</span>':'';
+      var valorStr='R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'');
+      var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
+      tabelaHtml+='<tr>'
+        +'<td class="nm">'+al.nome+badge+diasBadge+'</td>'
+        +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>Dia '+al.venc+'</td><td>'+bdg(al.fin)+'</td>'
+        +'<td style="display:flex;gap:4px">'
+        +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
+        +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
+        +'</td></tr>';
+    });
+  });
   c.innerHTML='<div class="sg g3">'
     +'<div class="sc"><div class="sl">Receita recebida</div><div class="sv">R$ '+total.toLocaleString('pt-BR')+'</div></div>'
     +'<div class="sc"><div class="sl">Previsto</div><div class="sv">R$ '+previsto.toLocaleString('pt-BR')+'</div></div>'
-    +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+lista.filter(function(a){return a.fin==='Atrasado';}).length+'</div></div>'
+    +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+inadimplentes+'</div></div>'
     +'</div>'
-    +'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>'+(soloInadimplentes?'Inadimplentes':'Pagamentos')+'</h3></div>'
-    +(lista.length?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr>'
-      +lista.map(function(al){
-        return '<tr><td class="nm">'+al.nome+(al.desconto>0?'<span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;margin-left:4px">-'+al.desconto+'%</span>':'')+'</td><td>'+al.plano+'</td><td>R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'')+'</td><td>Dia '+al.venc+'</td><td>'+bdg(al.fin)+'</td>'
-          +'<td style="display:flex;gap:4px">'
-          +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
-          +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
-          +'</td></tr>';
-      }).join('')+'</table>'
-      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna.</div>')+'</div>';
+    +'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>'+(soloInadimplentes?'Inadimplentes':'Mensalidades')+'</h3></div>'
+    +(tabelaHtml?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr>'+tabelaHtml+'</table>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna no fluxo.</div>')+'</div>';
 }
 
 function marcarPgto(btn){
   var alid=btn.dataset.alid;var fin=btn.dataset.fin;
   var al=ALUNOS.find(function(a){return a.id===alid;});
-  if(al){al.fin=fin;showToast('Status atualizado!');renderPagamentos(false);}
+  if(!al) return;
+  al.fin=fin;
+  if(fin==='Atrasado'){
+    if(!al.dataAtraso) al.dataAtraso=new Date().toISOString().split('T')[0];
+    al.diasInadimplente=calcDiasAtraso(al.dataAtraso);
+    // Volta valor ao cheio se tem desconto
+    if(al.desconto>0){ al.valor=al.valorCheio; showToast('⚠️ Desconto removido — valor voltou para R$ '+al.valor); }
+  } else if(fin==='Pago'){
+    al.dataAtraso=null; al.diasInadimplente=0;
+    // Restaurar desconto se tinha
+    if(al.desconto>0){ al.valor=Math.round(al.valorCheio*(1-al.desconto/100)); }
+  }
+  salvarAlunaDB(al);
+  showToast('Status atualizado!');
+  renderFinanceiro(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+function calcDiasAtraso(dataAtraso){
+  if(!dataAtraso) return 0;
+  var d=new Date(dataAtraso);var hoje=new Date();
+  return Math.floor((hoje-d)/(1000*60*60*24));
+}
+// Atualizar dias inadimplente de todos os alunos ao carregar
+function atualizarDiasInadimplente(){
+  ALUNOS.forEach(function(al){
+    if(al.fin==='Atrasado'&&al.dataAtraso){
+      al.diasInadimplente=calcDiasAtraso(al.dataAtraso);
+    }
+  });
 }
 
 function renderNF(c,a){
@@ -1994,6 +2144,23 @@ function renderNF(c,a){
         +'<td>'+bdg(al.nfEmitida?'Sim':'Não')+'</td>'
         +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="toggleNF(this.dataset.alid)">'+(al.nfEmitida?'Desmarcar':'Marcar emitida')+'</button></td></tr>';
     }).join('')+'</table></div>';
+}
+function renderNegativacao(c,a){
+  atualizarDiasInadimplente();
+  var lista=ALUNOS.filter(function(al){return al.fin==='Atrasado'&&(al.diasInadimplente||0)>10;})
+    .sort(function(a,b){return (b.diasInadimplente||0)-(a.diasInadimplente||0);});
+  c.innerHTML='<div class="card" style="border:2px solid #ef4444">'
+    +'<div class="ch"><i class="ti ti-ban" style="color:#ef4444"></i><h3 style="color:#ef4444">Negativação ('+lista.length+')</h3></div>'
+    +'<p style="font-size:12px;color:#666;padding:0 16px 12px">Alunos inadimplentes há mais de 10 dias — elegíveis para negativação do CPF.</p>'
+    +(lista.length?'<table class="tbl"><tr><th>Aluno</th><th>Valor</th><th>Vencimento</th><th>Dias em atraso</th><th>Status</th></tr>'
+      +lista.map(function(al){
+        return '<tr style="background:rgba(239,68,68,.05)">'
+          +'<td class="nm">'+al.nome+'<div style="font-size:11px;color:#aaa">'+al.email+'</div></td>'
+          +'<td>R$ '+al.valor+'</td><td>Dia '+al.venc+'</td>'
+          +'<td><span style="font-weight:700;color:#ef4444">'+al.diasInadimplente+' dias</span></td>'
+          +'<td>'+bdg(al.fin)+'</td></tr>';
+      }).join('')+'</table>'
+      :'<div style="text-align:center;padding:40px;color:#22c55e">✅ Nenhum aluno para negativação.</div>')+'</div>';
 }
 function toggleNF(id){var al=ALUNOS.find(function(a){return a.id===id;});if(al){al.nfEmitida=!al.nfEmitida;renderNF(document.getElementById('pc'),document.getElementById('tb-actions'));}}
 
