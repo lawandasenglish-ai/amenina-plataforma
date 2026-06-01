@@ -1259,7 +1259,7 @@ function renderUsuarios(c,a){
           +'<td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
           +'<td style="display:flex;gap:4px">'
           +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
-          +(S.perfil==='gestao'?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" data-alid="'+al.id+'" onclick="excluirAluna(this.dataset.alid)"><i class="ti ti-trash"></i></button>':'')
+          +'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" data-alid="'+al.id+'" onclick="excluirAluna(this.dataset.alid)"><i class="ti ti-trash"></i></button>'
           +'</td></tr>';
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:30px;color:var(--crose)">Nenhuma aluna cadastrada.</div>')
@@ -1624,8 +1624,6 @@ function openEditAluna(id){
     +'<button class="btn btn-primary" onclick="salvarEditAluna()">Salvar alterações</button></div>';
   openModal(html);
   setTimeout(function(){
-    // Tabs do modal de edição
-    var tabs=document.getElementById('edit-tabs');
     // PDF upload
     var btnUp=document.getElementById('btn-up-ficha');
     var inp=document.getElementById('ficha-file');
@@ -2173,7 +2171,10 @@ function renderAlunos(c,a){
       +'<table class="tbl"><tr><th>Nome</th><th>Nível</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th><th>Freq.</th><th>Financeiro</th><th>Status</th><th></th></tr>'
       +lista.map(function(al){
         return '<tr><td class="nm">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
-          +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
+          +'<td style="display:flex;gap:4px">'
+          +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
+          +(S.perfil!=='teacher'&&S.perfil!=='financeiro'?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" data-alid="'+al.id+'" onclick="excluirAluna(this.dataset.alid)"><i class="ti ti-trash"></i></button>':'')
+          +'</td></tr>';
       }).join('')+'</table></div>'
       :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna cadastrada.</div>');
 }
@@ -2296,18 +2297,11 @@ function atualizarDiasInadimplente(){
 
 function renderNF(c,a){
   c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-receipt-2"></i><h3>Notas Fiscais</h3></div>'
-    +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Status NF</th><th>Arquivo PDF</th><th></th></tr>'
+    +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>NF Emitida</th><th></th></tr>'
     +byName(ALUNOS).map(function(al){
-      var nfLink=al.nfUrl
-        ?'<a href="'+al.nfUrl+'" target="_blank" class="btn btn-ghost btn-sm">📄 Ver NF</a>'
-        :'<span style="font-size:11px;color:#aaa">Sem arquivo</span>';
       return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td>'
-        +'<td>'+bdg(al.nfEmitida?'NF Emitida':'Pendente')+'</td>'
-        +'<td>'+nfLink+'</td>'
-        +'<td style="display:flex;gap:4px;align-items:center">'
-        +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="toggleNF(this.dataset.alid)">'+(al.nfEmitida?'Desmarcar':'✅ Marcar')+'</button>'
-        +'<label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Anexar PDF da NF">📎 PDF<input type="file" accept=".pdf" style="display:none" onchange="uploadNF(event,\''+al.id+'\')"></label>'
-        +'</td></tr>';
+        +'<td>'+bdg(al.nfEmitida?'Sim':'Não')+'</td>'
+        +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="toggleNF(this.dataset.alid)">'+(al.nfEmitida?'Desmarcar':'Marcar emitida')+'</button></td></tr>';
     }).join('')+'</table></div>';
 }
 function renderNegativacao(c,a){
@@ -2327,26 +2321,7 @@ function renderNegativacao(c,a){
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:40px;color:#22c55e">✅ Nenhum aluno para negativação.</div>')+'</div>';
 }
-function toggleNF(id){
-  var al=ALUNOS.find(function(a){return a.id===id;});
-  if(al){ al.nfEmitida=!al.nfEmitida; salvarAlunaDB(al); renderNF(document.getElementById('pc'),document.getElementById('tb-actions')); }
-}
-function uploadNF(event,alunaId){
-  var file=event.target.files[0];
-  if(!file) return;
-  if(file.type!=='application/pdf'){ showToast('Apenas arquivos PDF são aceitos.'); return; }
-  var al=ALUNOS.find(function(a){return a.id===alunaId;});
-  if(!al) return;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    al.nfUrl=e.target.result;
-    al.nfEmitida=true;
-    salvarAlunaDB(al);
-    showToast('NF de '+al.nome+' anexada! ✅');
-    renderNF(document.getElementById('pc'),document.getElementById('tb-actions'));
-  };
-  reader.readAsDataURL(file);
-}
+function toggleNF(id){var al=ALUNOS.find(function(a){return a.id===id;});if(al){al.nfEmitida=!al.nfEmitida;renderNF(document.getElementById('pc'),document.getElementById('tb-actions'));}}
 
 // ══════════════════════════════════════════════════════
 // TEACHERS / REUNIÕES / EXTRAS / METAS
