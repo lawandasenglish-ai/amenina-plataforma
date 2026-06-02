@@ -440,9 +440,24 @@ var S={perfil:'gestao',userName:'Lawanda',userRole:'Diretoria',avatar:'LW',
 async function carregarDados(){
   if(!sb) return;
   try{
-    var [rAl,rTe,rLe,rAu,rEx,rRe,rTa]=await Promise.all([
+    // Carregar teachers PRIMEIRO para o mapa estar pronto quando mapAluno rodar
+    var rTe=await sb.from('teachers').select('*');
+    if(rTe.data&&rTe.data.length){
+      rTe.data.forEach(function(dbT){
+        var local=TEACHERS.find(function(t){return t.nome.toLowerCase()===dbT.nome.toLowerCase();});
+        if(local){ _teacherIdMap[local.id]=dbT.id; }
+        // Também mapear pelo UUID do banco direto (para alunos que já têm UUID)
+        _teacherIdMap[dbT.id]=dbT.id;
+      });
+      console.log('Teachers mapeadas:', _teacherIdMap);
+    } else {
+      (async function(){
+        for(var i=0;i<TEACHERS.length;i++){ await salvarTeacherDB(TEACHERS[i]); }
+      })();
+    }
+    // Agora carregar o resto em paralelo
+    var [rAl,rLe,rAu,rEx,rRe,rTa]=await Promise.all([
       sb.from('alunos').select('*'),
-      sb.from('teachers').select('*'),
       sb.from('leads').select('*'),
       sb.from('aulas').select('*'),
       sb.from('extras').select('*'),
@@ -450,20 +465,6 @@ async function carregarDados(){
       sb.from('tarefas').select('*'),
     ]);
     if(rAl.data&&rAl.data.length) ALUNOS=rAl.data.map(mapAluno);
-    if(rTe.data&&rTe.data.length){
-      // Mapear UUID do banco para o ID local de cada teacher
-      rTe.data.forEach(function(dbT){
-        var local=TEACHERS.find(function(t){return t.nome===dbT.nome;});
-        if(local){ _teacherIdMap[local.id]=dbT.id; }
-      });
-      console.log('Teachers mapeadas:', _teacherIdMap);
-    } else {
-      // Banco vazio - salvar teachers e popular o mapa
-      // Salvar sequencialmente para evitar duplicatas
-      (async function(){
-        for(var i=0;i<TEACHERS.length;i++){ await salvarTeacherDB(TEACHERS[i]); }
-      })();
-    }
     if(rLe.data&&rLe.data.length) LEADS=rLe.data.map(mapLead);
     if(rAu.data&&rAu.data.length) AULAS=rAu.data.map(mapAula);
     if(rEx.data&&rEx.data.length) EXTRAS=rEx.data.map(mapExtra);
@@ -485,12 +486,15 @@ async function carregarDados(){
 }
 
 function mapAluno(r){
-  // Tentar mapear teacher_id do banco para ID local
+  // Resolver teacher_id: pode ser UUID do banco ou ID local (t0,t1...)
   var localTeacherId=r.teacher_id;
   if(r.teacher_id){
-    // Procurar no mapa inverso
-    var localEntry=Object.keys(_teacherIdMap).find(function(k){return _teacherIdMap[k]===r.teacher_id;});
+    // Se é UUID do banco, buscar o ID local correspondente
+    var localEntry=Object.keys(_teacherIdMap).find(function(k){
+      return _teacherIdMap[k]===r.teacher_id && k!==r.teacher_id;
+    });
     if(localEntry) localTeacherId=localEntry;
+    // Se não achou local, manter o UUID mas garantir que getTeacher funcione
   }
   return {id:r.id,nome:r.nome,email:r.email||'',ddi:r.ddi||'+55',tel:r.telefone||'',
     senha:'Aluno2026',nivel:r.nivel||'A1',teacherId:localTeacherId||null,
@@ -972,7 +976,16 @@ function renderEmpty(c){
 // ══════════════════════════════════════════════════════
 function inits(nome){return (nome||'').split(' ').slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase()||'?';}
 function byName(arr){return arr.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});}
-function getTeacher(id){return TEACHERS.find(function(t){return t.id===id;})||{nome:'—'};}
+function getTeacher(id){
+  if(!id) return {nome:'—'};
+  // Buscar por ID local (t0, t1...)
+  var byLocal=TEACHERS.find(function(t){return t.id===id;});
+  if(byLocal) return byLocal;
+  // Buscar pelo UUID do banco via _teacherIdMap
+  var localId=Object.keys(_teacherIdMap).find(function(k){return _teacherIdMap[k]===id && k!==id;});
+  if(localId) return TEACHERS.find(function(t){return t.id===localId;})||{nome:'—'};
+  return {nome:'—'};
+}
 function myAlunos(){
   if(S.perfil==='teacher'&&S.teacherId)
     return byName(ALUNOS.filter(function(a){return a.teacherId===S.teacherId;}));
@@ -2171,10 +2184,7 @@ function renderAlunos(c,a){
       +'<table class="tbl"><tr><th>Nome</th><th>Nível</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th><th>Freq.</th><th>Financeiro</th><th>Status</th><th></th></tr>'
       +lista.map(function(al){
         return '<tr><td class="nm">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
-          +'<td style="display:flex;gap:4px">'
-          +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
-          +(S.perfil!=='teacher'&&S.perfil!=='financeiro'?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" data-alid="'+al.id+'" onclick="excluirAluna(this.dataset.alid)"><i class="ti ti-trash"></i></button>':'')
-          +'</td></tr>';
+          +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
       }).join('')+'</table></div>'
       :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna cadastrada.</div>');
 }
