@@ -5,8 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>A Menina que Ensina Inglês — Plataforma</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Red+Hat+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* ══ RELATÓRIOS ══ */
+.sg.g4{grid-template-columns:repeat(4,1fr);}
+.sc.ok{background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);}
+canvas{max-height:220px;}
+@media print{.sb,.tb-actions{display:none!important;}.pc{margin:0!important;padding:0!important;}}
+
 /* ══ VARIÁVEIS ══ */
 :root{
   --cr:#791428;--cd:#461017;--cp:#F7C6D3;--crose:#BC5572;--ccream:#FDFBF6;
@@ -871,6 +879,7 @@ var NAVS={
     {id:'reunioes',l:'Reuniões',ic:'ti-calendar-event'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
+    {s:'Relatórios'},{id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
     {s:'Financeiro'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;}},
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
@@ -893,6 +902,7 @@ var NAVS={
   ],
   comercial:[
     {s:'Vendas'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
+    {id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
     {id:'horarios',l:'Grade de Horários',ic:'ti-calendar-time'},
     {id:'crm',l:'CRM / Leads',ic:'ti-target',n:function(){return LEADS.length;}},
     {id:'funil',l:'Funil de Vendas',ic:'ti-filter'},
@@ -901,6 +911,7 @@ var NAVS={
   ],
   financeiro:[
     {s:'Financeiro'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
+    {id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
     {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;}},
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
@@ -920,7 +931,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas'};
+  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics'};
 
 function buildNav(){
   var items=NAVS[S.perfil]||[];
@@ -962,8 +973,358 @@ function goPage(id){
     retencao:renderRetencao,aulas:renderAulas,frequencia:renderFrequencia,
     extras:renderExtras,reunioes:renderReunioes,tarefas:renderTarefas,
     notas:renderNotas,horarios:renderHorarios,
+    relatorios:renderRelatorios,
   };
   (pages[id]||renderEmpty)(c,a);
+}
+
+// ══════════════════════════════════════════════════════
+// RELATÓRIOS & ANALYTICS
+// ══════════════════════════════════════════════════════
+
+var _charts = {};
+
+function destroyCharts(){
+  Object.keys(_charts).forEach(function(k){
+    try{ if(_charts[k]) _charts[k].destroy(); }catch(e){}
+  });
+  _charts = {};
+}
+
+function renderRelatorios(c, a){
+  destroyCharts();
+  var perfil = S.perfil;
+  // Tabs por perfil
+  var tabs = [];
+  if(perfil==='gestao'||perfil==='financeiro'){
+    tabs.push({id:'fin',l:'💰 Financeiro'});
+  }
+  if(perfil==='gestao'||perfil==='comercial'){
+    tabs.push({id:'com',l:'📈 Comercial'});
+  }
+  if(perfil==='gestao'){
+    tabs.push({id:'exec',l:'🏢 Executivo'});
+  }
+
+  var activeTab = tabs[0]?tabs[0].id:'fin';
+
+  // Botões de exportação
+  a.innerHTML = '<div style="display:flex;gap:8px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportarExcel()"><i class="ti ti-file-spreadsheet"></i> Excel</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportarPDF()"><i class="ti ti-file-type-pdf"></i> PDF</button>'
+    +'</div>';
+
+  c.innerHTML = '<div id="rel-tabs" style="display:flex;gap:0;border-bottom:2px solid rgba(121,20,40,.1);margin-bottom:20px">'
+    +tabs.map(function(t){
+      return '<div data-tab="'+t.id+'" style="padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;'
+        +(t.id===activeTab?'border-bottom:2px solid var(--cr);color:var(--cr);margin-bottom:-2px':'color:var(--crose)')+'">'+t.l+'</div>';
+    }).join('')+'</div>'
+    +'<div id="rel-content"></div>';
+
+  // Tab click
+  c.querySelectorAll('[data-tab]').forEach(function(el){
+    el.addEventListener('click',function(){
+      var tab=this.dataset.tab;
+      c.querySelectorAll('[data-tab]').forEach(function(t){
+        t.style.borderBottom=t.dataset.tab===tab?'2px solid var(--cr)':'none';
+        t.style.color=t.dataset.tab===tab?'var(--cr)':'var(--crose)';
+        t.style.marginBottom=t.dataset.tab===tab?'-2px':'0';
+      });
+      destroyCharts();
+      renderRelTab(tab);
+    });
+  });
+
+  renderRelTab(activeTab);
+}
+
+function renderRelTab(tab){
+  var rc = document.getElementById('rel-content');
+  if(!rc) return;
+  if(tab==='fin') renderRelFinanceiro(rc);
+  else if(tab==='com') renderRelComercial(rc);
+  else if(tab==='exec') renderRelExecutivo(rc);
+}
+
+// ── FINANCEIRO ──────────────────────────────────────────
+function renderRelFinanceiro(rc){
+  destroyCharts();
+  var hoje = new Date();
+  var mes = hoje.getMonth();
+  var ano = hoje.getFullYear();
+
+  // KPIs financeiros
+  var totalAtivos = ALUNOS.filter(function(a){return a.status==='Ativo';});
+  var mrr = totalAtivos.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var pagos = ALUNOS.filter(function(a){return a.fin==='Pago';});
+  var recebido = pagos.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var inadimplentes = ALUNOS.filter(function(a){return a.fin==='Atrasado';});
+  var emAberto = inadimplentes.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var ticketMedio = totalAtivos.length?Math.round(mrr/totalAtivos.length):0;
+  var taxaInad = totalAtivos.length?Math.round(inadimplentes.length/totalAtivos.length*100):0;
+
+  // Receita por vencimento (simula fluxo mensal)
+  var porVenc = {};
+  [5,10,15,20,30].forEach(function(v){ porVenc[v]=0; });
+  totalAtivos.forEach(function(a){
+    var v=parseInt(a.venc)||10;
+    if(!porVenc[v]) porVenc[v]=0;
+    porVenc[v]+=parseFloat(a.valor||0);
+  });
+
+  // Receita por teacher
+  var porTeacher = {};
+  totalAtivos.forEach(function(a){
+    var t=getTeacher(a.teacherId);
+    var tn=t.nome||'—';
+    if(!porTeacher[tn]) porTeacher[tn]=0;
+    porTeacher[tn]+=parseFloat(a.valor||0);
+  });
+
+  // Receita por tipo
+  var porTipo = {individual:0,dupla:0,turma:0};
+  totalAtivos.forEach(function(a){
+    var tipo=a.tipo||'individual';
+    if(!porTipo[tipo]) porTipo[tipo]=0;
+    porTipo[tipo]+=parseFloat(a.valor||0);
+  });
+
+  rc.innerHTML = 
+    // KPIs
+    '<div class="sg g4" style="margin-bottom:20px">'
+    +'<div class="sc ok"><div class="sl">MRR</div><div class="sv">R$ '+mrr.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">Receita recorrente mensal</div></div>'
+    +'<div class="sc ok"><div class="sl">Recebido</div><div class="sv">R$ '+recebido.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+pagos.length+' alunos pagos</div></div>'
+    +'<div class="sc warn"><div class="sl">Em aberto</div><div class="sv">R$ '+emAberto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+inadimplentes.length+' inadimplentes ('+taxaInad+'%)</div></div>'
+    +'<div class="sc"><div class="sl">Ticket médio</div><div class="sv">R$ '+ticketMedio.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">por aluno ativo</div></div>'
+    +'</div>'
+    // Gráficos
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+    +'<div class="card"><div class="ch"><i class="ti ti-chart-bar"></i><h3>Receita por vencimento</h3></div><div style="padding:0 16px 16px"><canvas id="chart-venc" height="220"></canvas></div></div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-chart-pie"></i><h3>Receita por tipo de aula</h3></div><div style="padding:0 16px 16px"><canvas id="chart-tipo" height="220"></canvas></div>'
+    +'</div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+    +'<div class="card"><div class="ch"><i class="ti ti-chart-bar"></i><h3>Receita por teacher</h3></div><div style="padding:0 16px 16px"><canvas id="chart-teacher" height="220"></canvas></div></div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Status financeiro</h3></div><div style="padding:0 16px 16px"><canvas id="chart-status" height="220"></canvas></div></div>'
+    +'</div>'
+    // Tabela detalhada por vencimento
+    +'<div class="card"><div class="ch"><i class="ti ti-table"></i><h3>Detalhamento por vencimento</h3></div>'
+    +'<table class="tbl"><tr><th>Vencimento</th><th>Alunos</th><th>Valor total</th><th>Pagos</th><th>Pendentes</th><th>Atrasados</th></tr>'
+    +[5,10,15,20,30].map(function(v){
+      var gr=ALUNOS.filter(function(a){return parseInt(a.venc)===v&&a.status==='Ativo';});
+      var tot=gr.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+      var pg=gr.filter(function(a){return a.fin==='Pago';}).length;
+      var pe=gr.filter(function(a){return a.fin==='Pendente';}).length;
+      var at=gr.filter(function(a){return a.fin==='Atrasado';}).length;
+      return gr.length?'<tr><td>Dia '+v+'</td><td>'+gr.length+'</td><td>R$ '+tot.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td><td style="color:#16a34a">'+pg+'</td><td>'+pe+'</td><td style="color:#dc2626">'+at+'</td></tr>':'';
+    }).join('')+'</table></div>';
+
+  // Render charts
+  setTimeout(function(){
+    // Receita por vencimento
+    var ctx1=document.getElementById('chart-venc');
+    if(ctx1){
+      _charts.venc=new Chart(ctx1,{type:'bar',data:{
+        labels:Object.keys(porVenc).map(function(v){return 'Dia '+v;}),
+        datasets:[{label:'R$',data:Object.values(porVenc),backgroundColor:'rgba(121,20,40,.7)',borderRadius:6}]
+      },options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return 'R$'+v.toLocaleString('pt-BR');}}}}}});
+    }
+    // Tipo de aula
+    var ctx2=document.getElementById('chart-tipo');
+    if(ctx2){
+      _charts.tipo=new Chart(ctx2,{type:'doughnut',data:{
+        labels:['Individual','Dupla','Turma'],
+        datasets:[{data:[porTipo.individual,porTipo.dupla,porTipo.turma],backgroundColor:['#791428','#BC5572','#F7C6D3']}]
+      },options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+    }
+    // Por teacher
+    var ctx3=document.getElementById('chart-teacher');
+    if(ctx3){
+      var tNames=Object.keys(porTeacher).sort(function(a,b){return porTeacher[b]-porTeacher[a];});
+      _charts.teacher=new Chart(ctx3,{type:'bar',data:{
+        labels:tNames,
+        datasets:[{label:'R$',data:tNames.map(function(t){return porTeacher[t];}),backgroundColor:'rgba(188,85,114,.7)',borderRadius:6}]
+      },options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return 'R$'+v.toLocaleString('pt-BR');}}}}}});
+    }
+    // Status
+    var ctx4=document.getElementById('chart-status');
+    if(ctx4){
+      var pg2=ALUNOS.filter(function(a){return a.fin==='Pago';}).length;
+      var pe2=ALUNOS.filter(function(a){return a.fin==='Pendente';}).length;
+      var at2=ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;
+      _charts.status=new Chart(ctx4,{type:'pie',data:{
+        labels:['Pago','Pendente','Atrasado'],
+        datasets:[{data:[pg2,pe2,at2],backgroundColor:['#16a34a','#ca8a04','#dc2626']}]
+      },options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+    }
+  },100);
+}
+
+// ── COMERCIAL ────────────────────────────────────────────
+function renderRelComercial(rc){
+  destroyCharts();
+  var total=LEADS.length;
+  var etapas={lead:0,contato:0,experimental:0,proposta:0,matriculado:0,perdido:0};
+  LEADS.forEach(function(l){ if(etapas[l.etapa]!==undefined) etapas[l.etapa]++; });
+  var convertidos=etapas.matriculado;
+  var taxa=total?Math.round(convertidos/total*100):0;
+  var perdidos=etapas.perdido;
+
+  // Leads por origem
+  var porOrigem={};
+  LEADS.forEach(function(l){
+    var o=l.origem||'Não informado';
+    if(!porOrigem[o]) porOrigem[o]=0;
+    porOrigem[o]++;
+  });
+
+  rc.innerHTML=
+    '<div class="sg g4" style="margin-bottom:20px">'
+    +'<div class="sc"><div class="sl">Total de leads</div><div class="sv">'+total+'</div></div>'
+    +'<div class="sc ok"><div class="sl">Convertidos</div><div class="sv">'+convertidos+'</div><div style="font-size:11px;color:#666;margin-top:2px">Taxa '+taxa+'%</div></div>'
+    +'<div class="sc warn"><div class="sl">Perdidos</div><div class="sv">'+perdidos+'</div></div>'
+    +'<div class="sc"><div class="sl">Em negociação</div><div class="sv">'+(etapas.contato+etapas.experimental+etapas.proposta)+'</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+    +'<div class="card"><div class="ch"><i class="ti ti-filter"></i><h3>Funil de conversão</h3></div><div style="padding:0 16px 16px"><canvas id="chart-funil" height="220"></canvas></div></div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-chart-pie"></i><h3>Leads por origem</h3></div><div style="padding:0 16px 16px"><canvas id="chart-origem" height="220"></canvas></div></div>'
+    +'</div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-table"></i><h3>Detalhamento do funil</h3></div>'
+    +'<table class="tbl"><tr><th>Etapa</th><th>Quantidade</th><th>%</th></tr>'
+    +[['lead','🎯 Lead'],['contato','📞 Contato'],['experimental','🎓 Experimental'],['proposta','📋 Proposta'],['matriculado','✅ Matriculado'],['perdido','❌ Perdido']]
+    .map(function(e){
+      var n=etapas[e[0]]||0;
+      var p=total?Math.round(n/total*100):0;
+      return '<tr><td>'+e[1]+'</td><td>'+n+'</td><td>'
+        +'<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;background:#eee;border-radius:99px;height:6px"><div style="background:var(--cr);height:6px;border-radius:99px;width:'+p+'%"></div></div>'+p+'%</div>'
+        +'</td></tr>';
+    }).join('')+'</table></div>';
+
+  setTimeout(function(){
+    var ctx1=document.getElementById('chart-funil');
+    if(ctx1){
+      _charts.funil=new Chart(ctx1,{type:'bar',data:{
+        labels:['Lead','Contato','Experimental','Proposta','Matriculado','Perdido'],
+        datasets:[{data:[etapas.lead,etapas.contato,etapas.experimental,etapas.proposta,etapas.matriculado,etapas.perdido],
+          backgroundColor:['#3b82f6','#8b5cf6','#f59e0b','#06b6d4','#16a34a','#dc2626'],borderRadius:6}]
+      },options:{responsive:true,plugins:{legend:{display:false}}}});
+    }
+    var ctx2=document.getElementById('chart-origem');
+    if(ctx2){
+      var origens=Object.keys(porOrigem);
+      var cores=['#791428','#BC5572','#F7C6D3','#f59e0b','#3b82f6','#8b5cf6','#06b6d4'];
+      _charts.origem=new Chart(ctx2,{type:'doughnut',data:{
+        labels:origens,
+        datasets:[{data:origens.map(function(o){return porOrigem[o];}),backgroundColor:cores.slice(0,origens.length)}]
+      },options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+    }
+  },100);
+}
+
+// ── EXECUTIVO ────────────────────────────────────────────
+function renderRelExecutivo(rc){
+  destroyCharts();
+  var ativos=ALUNOS.filter(function(a){return a.status==='Ativo';}).length;
+  var desap=ALUNOS.filter(function(a){return a.status==='Desaparecido';}).length;
+  var atencao=ALUNOS.filter(function(a){return a.status==='Atenção';}).length;
+  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo';}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var convertidos=LEADS.filter(function(l){return l.etapa==='matriculado';}).length;
+  var total=LEADS.length;
+  var taxa=total?Math.round(convertidos/total*100):0;
+  var inadQtd=ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;
+  var taxaInad=ativos?Math.round(inadQtd/ativos*100):0;
+
+  rc.innerHTML=
+    '<div class="sg g4" style="margin-bottom:20px">'
+    +'<div class="sc ok"><div class="sl">Alunos ativos</div><div class="sv">'+ativos+'</div></div>'
+    +'<div class="sc ok"><div class="sl">MRR</div><div class="sv">R$ '+mrr.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
+    +'<div class="sc"><div class="sl">Conversão comercial</div><div class="sv">'+taxa+'%</div><div style="font-size:11px;color:#666;margin-top:2px">'+convertidos+' de '+total+' leads</div></div>'
+    +'<div class="sc warn"><div class="sl">Taxa inadimplência</div><div class="sv">'+taxaInad+'%</div><div style="font-size:11px;color:#666;margin-top:2px">'+inadQtd+' alunos</div></div>'
+    +'</div>'
+    +(atencao||desap?'<div class="card" style="border:2px solid #ef4444;margin-bottom:16px"><div class="ch"><i class="ti ti-alert-circle" style="color:#ef4444"></i><h3 style="color:#ef4444">Alertas</h3></div>'
+    +'<div style="padding:8px 16px 16px;display:flex;gap:12px">'
+    +(desap?'<div style="background:#fee2e2;border-radius:8px;padding:12px 20px;text-align:center"><div style="font-size:24px;font-weight:700;color:#dc2626">'+desap+'</div><div style="font-size:11px;color:#991b1b">Desaparecidos</div></div>':'')
+    +(atencao?'<div style="background:#fef9c3;border-radius:8px;padding:12px 20px;text-align:center"><div style="font-size:24px;font-weight:700;color:#ca8a04">'+atencao+'</div><div style="font-size:11px;color:#854d0e">Merecem atenção</div></div>':'')
+    +'</div></div>':'')
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    +'<div class="card"><div class="ch"><i class="ti ti-chart-bar"></i><h3>Alunos por teacher</h3></div><div style="padding:0 16px 16px"><canvas id="chart-exec-teacher" height="240"></canvas></div></div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-chart-pie"></i><h3>Distribuição por nível</h3></div><div style="padding:0 16px 16px"><canvas id="chart-exec-nivel" height="240"></canvas></div></div>'
+    +'</div>';
+
+  setTimeout(function(){
+    // Alunos por teacher
+    var porT={};
+    ALUNOS.forEach(function(a){
+      var t=getTeacher(a.teacherId).nome||'—';
+      if(!porT[t]) porT[t]=0;
+      porT[t]++;
+    });
+    var tNames=Object.keys(porT).sort(function(a,b){return porT[b]-porT[a];});
+    var ctx1=document.getElementById('chart-exec-teacher');
+    if(ctx1){
+      _charts.execT=new Chart(ctx1,{type:'bar',data:{
+        labels:tNames,
+        datasets:[{data:tNames.map(function(t){return porT[t];}),backgroundColor:'rgba(121,20,40,.7)',borderRadius:6}]
+      },options:{responsive:true,plugins:{legend:{display:false}}}});
+    }
+    // Por nível
+    var porN={};
+    ALUNOS.forEach(function(a){
+      var n=a.nivel||'A1';
+      if(!porN[n]) porN[n]=0;
+      porN[n]++;
+    });
+    var niveis=Object.keys(porN).sort();
+    var ctx2=document.getElementById('chart-exec-nivel');
+    if(ctx2){
+      _charts.execN=new Chart(ctx2,{type:'doughnut',data:{
+        labels:niveis,
+        datasets:[{data:niveis.map(function(n){return porN[n];}),backgroundColor:['#791428','#BC5572','#F7C6D3','#f59e0b','#3b82f6','#8b5cf6']}]
+      },options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+    }
+  },100);
+}
+
+// ── EXPORTAÇÕES ──────────────────────────────────────────
+function exportarExcel(){
+  var wb = XLSX.utils.book_new();
+
+  // Aba Financeiro
+  var finData=[['Nome','Nível','Teacher','Tipo','Plano','Valor (R$)','Vencimento','Status Fin.','Status','Dias Atraso']];
+  ALUNOS.forEach(function(a){
+    finData.push([a.nome,a.nivel,getTeacher(a.teacherId).nome||'—',a.tipo||'individual',a.plano,a.valor,a.venc,a.fin,a.status,a.diasInadimplente||0]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(finData), 'Financeiro');
+
+  // Aba Comercial/Leads
+  var comData=[['Nome','Email','Telefone','Origem','Etapa','Nível','Objetivo']];
+  LEADS.forEach(function(l){
+    comData.push([l.nome,l.email||'',l.tel||'',l.origem||'',l.etapa,l.nivel||'',l.objetivo||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(comData), 'Leads');
+
+  // Aba Resumo
+  var ativos=ALUNOS.filter(function(a){return a.status==='Ativo';});
+  var mrr=ativos.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var resumo=[
+    ['Métrica','Valor'],
+    ['Total de alunos',ALUNOS.length],
+    ['Alunos ativos',ativos.length],
+    ['MRR (R$)',mrr.toFixed(2)],
+    ['Inadimplentes',ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length],
+    ['Total leads',LEADS.length],
+    ['Leads convertidos',LEADS.filter(function(l){return l.etapa==='matriculado';}).length],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), 'Resumo');
+
+  var data=new Date();
+  var nome='AmenIna_Relatorio_'+data.getFullYear()+'_'+(data.getMonth()+1).toString().padStart(2,'0')+'.xlsx';
+  XLSX.writeFile(wb, nome);
+  showToast('Excel exportado! 📊');
+}
+
+function exportarPDF(){
+  window.print();
+  showToast('Use Ctrl+P / Cmd+P para salvar como PDF 📄');
 }
 
 function renderEmpty(c){
