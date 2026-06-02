@@ -490,6 +490,8 @@ async function carregarDados(){
       }
     }catch(e){console.warn('Erro carregar horários:',e);}
     console.log('Dados carregados:',ALUNOS.length,'alunos',TEACHERS.length,'teachers');
+    // Carregar despesas
+    await carregarDespesasDB();
   }catch(e){ console.warn('Supabase offline:',e); }
 }
 
@@ -991,6 +993,57 @@ function destroyCharts(){
   _charts = {};
 }
 
+// ── REGRAS DE CUSTO DE AULA ─────────────────────────────
+// Presente: teacher recebe (R$25 individual / R$35 dupla/turma/montada)
+// Cancelada: teacher recebe (R$25 ou R$35)
+// Remarcada: teacher NÃO recebe
+// Faltou: teacher NÃO recebe
+var CUSTO_INDIVIDUAL = 25;
+var CUSTO_GRUPO = 35;
+
+function calcCustoAula(aula){
+  // Remarcada e Faltou = não paga
+  if(aula.presenca==='Remarcada'||aula.presenca==='Faltou') return 0;
+  // Presente, Cancelada ou Montada = paga
+  var al=ALUNOS.find(function(a){return a.id===aula.alunoId;});
+  var tipo=(al?al.tipo:null)||'individual';
+  if(aula.presenca==='Montada') return CUSTO_GRUPO; // montada sempre R$35
+  return (tipo==='individual')?CUSTO_INDIVIDUAL:CUSTO_GRUPO;
+}
+
+function calcCustoMesTeacher(teacherId, mes, ano){
+  return AULAS.filter(function(a){
+    if(a.teacherId!==teacherId) return false;
+    if(!a.data) return false;
+    var d=new Date(a.data);
+    return d.getMonth()===mes && d.getFullYear()===ano;
+  }).reduce(function(s,a){return s+calcCustoAula(a);},0);
+}
+
+// ── FLUXO DE CAIXA / DESPESAS ────────────────────────────
+var DESPESAS = [];
+
+function salvarDespesasDB(){
+  if(!sb) return;
+  try{
+    sb.from('despesas').upsert(DESPESAS.map(function(d){return {
+      id:d.id,mes:d.mes,ano:d.ano,categoria:d.categoria,descricao:d.descricao,valor:d.valor
+    };}));
+  }catch(e){ console.warn('Erro salvar despesas:',e); }
+}
+
+async function carregarDespesasDB(){
+  if(!sb) return;
+  try{
+    var r=await sb.from('despesas').select('*');
+    if(r.data&&r.data.length){
+      DESPESAS=r.data.map(function(d){return {
+        id:d.id,mes:d.mes,ano:d.ano,categoria:d.categoria,descricao:d.descricao,valor:parseFloat(d.valor)||0
+      };});
+    }
+  }catch(e){ console.warn('Despesas: tabela pode não existir ainda',e); }
+}
+
 function renderRelatorios(c, a){
   destroyCharts();
   var perfil = S.perfil;
@@ -998,6 +1051,8 @@ function renderRelatorios(c, a){
   var tabs = [];
   if(perfil==='gestao'||perfil==='financeiro'){
     tabs.push({id:'fin',l:'💰 Financeiro'});
+    tabs.push({id:'fluxo',l:'💸 Fluxo de Caixa'});
+    tabs.push({id:'teachers_custo',l:'👩‍🏫 Custo Teachers'});
   }
   if(perfil==='gestao'||perfil==='comercial'){
     tabs.push({id:'com',l:'📈 Comercial'});
@@ -1044,6 +1099,167 @@ function renderRelTab(tab){
   if(tab==='fin') renderRelFinanceiro(rc);
   else if(tab==='com') renderRelComercial(rc);
   else if(tab==='exec') renderRelExecutivo(rc);
+  else if(tab==='fluxo') renderFluxoCaixa(rc);
+  else if(tab==='teachers_custo') renderCustoTeachers(rc);
+}
+
+
+// ── FLUXO DE CAIXA ───────────────────────────────────────
+function renderFluxoCaixa(rc){
+  var hoje=new Date();
+  var mes=hoje.getMonth();
+  var ano=hoje.getFullYear();
+  var meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var categorias=['Teachers','Marketing','Ferramentas','Impostos','Operacional','Outros'];
+
+  var desp=DESPESAS.filter(function(d){return d.mes===mes&&d.ano===ano;});
+  var totalDesp=desp.reduce(function(s,d){return s+d.valor;},0);
+  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo';}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var saldo=mrr-totalDesp;
+
+  // Custo previsão teachers este mês
+  var custoTeachersPrev=0;
+  var teacherIds=[...new Set(AULAS.filter(function(a){
+    if(!a.data) return false;
+    var d=new Date(a.data);
+    return d.getMonth()===mes&&d.getFullYear()===ano;
+  }).map(function(a){return a.teacherId;}))];
+  teacherIds.forEach(function(tid){
+    custoTeachersPrev+=calcCustoMesTeacher(tid,mes,ano);
+  });
+
+  rc.innerHTML=
+    // Seletor de mês
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'
+    +'<label style="font-size:12px;font-weight:700;color:var(--crose)">Mês:</label>'
+    +'<select id="fluxo-mes" style="padding:7px 12px;border-radius:8px;border:1.5px solid rgba(121,20,40,.18);background:#fff;color:var(--cd);font-size:12px">'
+    +meses.map(function(m,i){return '<option value="'+i+'"'+(i===mes?' selected':'')+'>'+m+'</option>';}).join('')
+    +'</select>'
+    +'<select id="fluxo-ano" style="padding:7px 12px;border-radius:8px;border:1.5px solid rgba(121,20,40,.18);background:#fff;color:var(--cd);font-size:12px">'
+    +[ano-1,ano,ano+1].map(function(y){return '<option value="'+y+'"'+(y===ano?' selected':'')+'>'+y+'</option>';}).join('')
+    +'</select>'
+    +'<button class="btn btn-ghost btn-sm" onclick="filtrarFluxo()">Filtrar</button>'
+    +'</div>'
+    // KPIs
+    +'<div class="sg g4" style="margin-bottom:20px">'
+    +'<div class="sc ok"><div class="sl">Receita prevista</div><div class="sv">R$ '+mrr.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">MRR</div></div>'
+    +'<div class="sc warn"><div class="sl">Despesas lançadas</div><div class="sv">R$ '+totalDesp.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
+    +'<div class="sc warn"><div class="sl">Custo teachers</div><div class="sv">R$ '+custoTeachersPrev.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">Baseado nas aulas</div></div>'
+    +'<div class="sc '+(saldo>=0?'ok':'')+'"><div class="sl">Saldo previsto</div><div class="sv" style="color:'+(saldo>=0?'#16a34a':'#dc2626')+'">R$ '+saldo.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
+    +'</div>'
+    // Form nova despesa
+    +'<div class="card" style="margin-bottom:16px"><div class="ch"><i class="ti ti-plus"></i><h3>Lançar despesa</h3></div>'
+    +'<div style="padding:0 16px 16px"><div class="fgrid">'
+    +'<div class="fg"><label>Categoria</label><select id="desp-cat">'
+    +categorias.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg"><label>Descrição</label><input id="desp-desc" placeholder="Ex: Conta Zoom, Anúncios Instagram..."></div>'
+    +'<div class="fg"><label>Valor (R$)</label><input type="number" id="desp-valor" placeholder="0,00" step="0.01"></div>'
+    +'</div>'
+    +'<button class="btn btn-primary" style="margin-top:8px" onclick="lancarDespesa()"><i class="ti ti-plus"></i> Lançar</button>'
+    +'</div></div>'
+    // Lista despesas
+    +'<div class="card"><div class="ch"><i class="ti ti-list"></i><h3>Despesas — '+meses[mes]+' '+ano+'</h3></div>'
+    +(desp.length
+      ?'<table class="tbl"><tr><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>'
+       +desp.map(function(d){
+         return '<tr><td>'+bdg(d.categoria)+'</td><td>'+d.descricao+'</td><td>R$ '+d.valor.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td>'
+           +'<td><button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="removerDespesa(\''+d.id+'\')"><i class="ti ti-trash"></i></button></td></tr>';
+       }).join('')+'</table>'
+      :'<div style="text-align:center;padding:30px;color:var(--crose)">Nenhuma despesa lançada.</div>')
+    +'</div>';
+
+  setTimeout(function(){
+    document.getElementById('filtro-fluxo-btn') && document.getElementById('filtro-fluxo-btn').addEventListener('click',filtrarFluxo);
+  },0);
+}
+
+function lancarDespesa(){
+  var cat=document.getElementById('desp-cat');
+  var desc=document.getElementById('desp-desc');
+  var val=document.getElementById('desp-valor');
+  if(!desc||!val||!val.value){showToast('Preencha descrição e valor.');return;}
+  var hoje=new Date();
+  var d={id:uuid(),mes:hoje.getMonth(),ano:hoje.getFullYear(),
+    categoria:(cat?cat.value:'Outros'),descricao:desc.value,valor:parseFloat(val.value)||0};
+  DESPESAS.push(d);
+  salvarDespesasDB();
+  showToast('Despesa lançada! ✅');
+  renderFluxoCaixa(document.getElementById('rel-content'));
+}
+
+function removerDespesa(id){
+  if(!confirm('Remover esta despesa?')) return;
+  DESPESAS=DESPESAS.filter(function(d){return d.id!==id;});
+  if(sb){ try{ sb.from('despesas').delete().eq('id',id); }catch(e){} }
+  renderFluxoCaixa(document.getElementById('rel-content'));
+}
+
+function filtrarFluxo(){
+  var m=parseInt((document.getElementById('fluxo-mes')||{value:new Date().getMonth()}).value);
+  var y=parseInt((document.getElementById('fluxo-ano')||{value:new Date().getFullYear()}).value);
+  var meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var rc=document.getElementById('rel-content');
+  var desp=DESPESAS.filter(function(d){return d.mes===m&&d.ano===y;});
+  var totalDesp=desp.reduce(function(s,d){return s+d.valor;},0);
+  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo';}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  // Re-render
+  renderFluxoCaixa(rc);
+}
+
+// ── CUSTO TEACHERS ───────────────────────────────────────
+function renderCustoTeachers(rc){
+  var hoje=new Date();
+  var mes=hoje.getMonth();
+  var ano=hoje.getFullYear();
+  var meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  var rows=TEACHERS.map(function(t){
+    var tid=_teacherIdMap[t.id]||t.id;
+    var aulasDoMes=AULAS.filter(function(a){
+      if(a.teacherId!==tid&&a.teacherId!==t.id) return false;
+      if(!a.data) return false;
+      var d=new Date(a.data); return d.getMonth()===mes&&d.getFullYear()===ano;
+    });
+    var presentes=aulasDoMes.filter(function(a){return a.presenca==='Presente';}).length;
+    var canceladas=aulasDoMes.filter(function(a){return a.presenca==='Cancelada';}).length;
+    var remarcadas=aulasDoMes.filter(function(a){return a.presenca==='Remarcada';}).length;
+    var montadas=aulasDoMes.filter(function(a){return a.presenca==='Montada';}).length;
+    var faltou=aulasDoMes.filter(function(a){return a.presenca==='Faltou';}).length;
+    var custo=calcCustoMesTeacher(tid,mes,ano)+calcCustoMesTeacher(t.id,mes,ano);
+    return {nome:t.nome,presentes:presentes,canceladas:canceladas,remarcadas:remarcadas,montadas:montadas,faltou:faltou,custo:custo,total:aulasDoMes.length};
+  }).filter(function(r){return r.total>0||true;});
+
+  var totalCusto=rows.reduce(function(s,r){return s+r.custo;},0);
+
+  rc.innerHTML=
+    '<div class="sg g3" style="margin-bottom:20px">'
+    +'<div class="sc warn"><div class="sl">Custo total teachers</div><div class="sv">R$ '+totalCusto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+meses[mes]+' '+ano+'</div></div>'
+    +'<div class="sc"><div class="sl">Individual</div><div class="sv">R$ '+CUSTO_INDIVIDUAL+',00/h</div></div>'
+    +'<div class="sc"><div class="sl">Turma/Dupla/Montada</div><div class="sv">R$ '+CUSTO_GRUPO+',00/h</div></div>'
+    +'</div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Previsão por teacher — '+meses[mes]+' '+ano+'</h3></div>'
+    +'<table class="tbl"><tr><th>Teacher</th><th>Presentes</th><th>Canceladas</th><th>Montadas</th><th>Remarcadas</th><th>Faltou (aluno)</th><th style="color:var(--cr)">Previsão R$</th></tr>'
+    +rows.map(function(r){
+      return '<tr>'
+        +'<td class="nm">'+r.nome+'</td>'
+        +'<td style="color:#16a34a">'+r.presentes+'</td>'
+        +'<td style="color:#ca8a04">'+r.canceladas+'</td>'
+        +'<td style="color:#8b5cf6">'+r.montadas+'</td>'
+        +'<td style="color:#94a3b8">'+r.remarcadas+'</td>'
+        +'<td style="color:#dc2626">'+r.faltou+'</td>'
+        +'<td style="font-weight:700;color:var(--cr)">R$ '+r.custo.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td>'
+        +'</tr>';
+    }).join('')
+    +'<tr style="background:rgba(121,20,40,.05);font-weight:700"><td colspan="6">Total</td><td style="color:var(--cr)">R$ '+totalCusto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td></tr>'
+    +'</table></div>'
+    +'<div class="card" style="margin-top:16px"><div class="ch"><i class="ti ti-info-circle"></i><h3>Regras de pagamento</h3></div>'
+    +'<div style="padding:8px 16px 16px;font-size:12px;color:var(--cd);line-height:1.8">'
+    +'✅ <strong>Presente</strong> — teacher recebe (R$25 individual / R$35 dupla, turma ou montada)<br>'
+    +'✅ <strong>Cancelada</strong> — teacher recebe (aula preparada)<br>'
+    +'🔧 <strong>Montada</strong> — teacher recebe R$35 (montagem de material)<br>'
+    +'❌ <strong>Remarcada</strong> — teacher NÃO recebe (aula será feita em outro momento)<br>'
+    +'❌ <strong>Faltou (aluno)</strong> — teacher NÃO recebe'
+    +'</div></div>';
 }
 
 // ── FINANCEIRO ──────────────────────────────────────────
@@ -1302,6 +1518,34 @@ function exportarExcel(){
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(comData), 'Leads');
 
+  // Aba Despesas
+  var despData=[['Mês','Ano','Categoria','Descrição','Valor (R$)']];
+  DESPESAS.forEach(function(d){
+    var meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    despData.push([meses[d.mes]||d.mes,d.ano,d.categoria,d.descricao,d.valor]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(despData), 'Despesas');
+
+  // Aba Custo Teachers
+  var hoje2=new Date();
+  var custoData=[['Teacher','Presentes','Canceladas','Montadas','Remarcadas','Faltou','Custo R$']];
+  TEACHERS.forEach(function(t){
+    var tid=_teacherIdMap[t.id]||t.id;
+    var aulasM=AULAS.filter(function(a){
+      if(a.teacherId!==tid&&a.teacherId!==t.id) return false;
+      if(!a.data) return false;
+      var d=new Date(a.data); return d.getMonth()===hoje2.getMonth()&&d.getFullYear()===hoje2.getFullYear();
+    });
+    var pres=aulasM.filter(function(a){return a.presenca==='Presente';}).length;
+    var canc=aulasM.filter(function(a){return a.presenca==='Cancelada';}).length;
+    var mont=aulasM.filter(function(a){return a.presenca==='Montada';}).length;
+    var remar=aulasM.filter(function(a){return a.presenca==='Remarcada';}).length;
+    var falt=aulasM.filter(function(a){return a.presenca==='Faltou';}).length;
+    var custo=calcCustoMesTeacher(tid,hoje2.getMonth(),hoje2.getFullYear())+calcCustoMesTeacher(t.id,hoje2.getMonth(),hoje2.getFullYear());
+    custoData.push([t.nome,pres,canc,mont,remar,falt,custo]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(custoData), 'Custo Teachers');
+
   // Aba Resumo
   var ativos=ALUNOS.filter(function(a){return a.status==='Ativo';});
   var mrr=ativos.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
@@ -1376,7 +1620,7 @@ function showToast(msg){
 
 function bdg(val){
   var map={
-    'Pago':'ok','Ativo':'ok','Presente':'ok','Ótimo':'ok','concluido':'ok','Em dia':'ok',
+    'Pago':'ok','Ativo':'ok','Presente':'ok','Ótimo':'ok','concluido':'ok','Em dia':'ok','Montada':'warn','Cancelada':'warn','Remarcada':'warn',
     'Pendente':'warn','Flexível':'warn','andamento':'warn','Reposição':'warn',
     'Atrasado':'err','Inativo':'err','Faltou':'err','perdido':'err','bloqueado':'err',
     'A1':'info','A2':'info','B1':'info','B2':'info','C1':'info','C2':'info',
@@ -2447,7 +2691,9 @@ function renderAulas(c,a){
           return '<div style="border:1px solid rgba(121,20,40,.07);border-radius:10px;padding:14px;margin-bottom:10px;background:rgba(121,20,40,.02)">'
             +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
             +'<div style="font-weight:700;color:var(--cd);font-size:13px">'+(al?al.nome:'—')+'</div>'
-            +'<div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'+bdg(r.presenca)+'</div>'
+            +'<div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'+bdg(r.presenca)
+            +(S.perfil==='gestao'||S.perfil==='financeiro'?'<span style="font-size:10px;background:rgba(121,20,40,.08);color:var(--cr);border-radius:4px;padding:1px 6px">R$ '+calcCustoAula(r)+'</span>':'')
+            +'</div>'
             +'</div>'
             +(r.conteudo?'<div style="font-size:12px;color:var(--cd);margin-bottom:4px">📖 <strong>Conteúdo:</strong> '+r.conteudo+'</div>':'')
             +(r.desempenho?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">⭐ Desempenho: '+r.desempenho+'</div>':'')
@@ -2470,7 +2716,7 @@ function mNovaAula(){
   return '<div class="mhdr"><h2>Registrar aula</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fgrid"><div class="fg"><label>Aluna</label><select id="na-aluno"><option value="">Selecione</option>'+meusAlunos.map(function(al){return '<option value="'+al.id+'">'+al.nome+'</option>';}).join('')+'</select></div>'
     +'<div class="fg"><label>Data</label><input type="date" id="na-data" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
-    +'<div class="fgrid"><div class="fg"><label>Presença</label><select id="na-pres"><option value="Presente">Presente</option><option value="Faltou">Faltou</option><option value="Cancelada">Cancelada</option><option value="Remarcada">Remarcada</option></select></div>'
+    +'<div class="fgrid"><div class="fg"><label>Presença</label><select id="na-pres"><option value="Presente">Presente</option><option value="Faltou">Faltou</option><option value="Cancelada">Cancelada</option><option value="Remarcada">Remarcada</option><option value="Montada">🔧 Montada</option></select></div>'
     +'<div class="fg"><label>Desempenho</label><select id="na-desemp"><option value="Ótimo">Ótimo</option><option value="Bom">Bom</option><option value="Regular">Regular</option><option value="Precisa melhorar">Precisa melhorar</option></select></div></div>'
     +'<div class="fg"><label>Conteúdo da aula</label><input id="na-cont" placeholder="Ex: Lesson 1A - Page 14"></div>'
     +'<div class="fgrid"><div class="fg"><label>Speaking</label><select id="na-speak"><option value="Ótimo">Ótimo</option><option value="Bom">Bom</option><option value="Regular">Regular</option></select></div>'
