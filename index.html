@@ -527,7 +527,7 @@ function mapLead(r){
     etapa:r.etapa||'lead',obs:r.obs||'',data:r.created_at?r.created_at.split('T')[0]:''};
 }
 function mapAula(r){
-  return {id:r.id,alunoId:r.aluno_id,teacherId:r.teacher_id,data:r.data||'',
+  return {id:r.id,alunoId:r.aluno_id||'',teacherId:r.teacher_id||'',data:r.data||'',
     presenca:r.presenca||'Presente',conteudo:r.conteudo||'',desempenho:r.desempenho||'',
     speaking:r.speaking||'',participacao:r.participacao||'',homework:r.homework||'',
     dificuldades:r.dificuldades||'',obs:r.obs||''};
@@ -1877,8 +1877,9 @@ function renderUsuarios(c,a){
           +'<td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
           +'<td style="display:flex;gap:4px">'
           +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
+          +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
+          +(S.perfil==='gestao'||S.perfil==='pedagogico'?'<button class="btn btn-ghost btn-sm" onclick="abrirPerfilAlunoCoord(\''+al.id+'\')" title="Ver histórico"><i class="ti ti-eye"></i></button>':'')
           +'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" data-alid="'+al.id+'" onclick="excluirAluna(this.dataset.alid)"><i class="ti ti-trash"></i></button>'
-          +'</td></tr>';
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:30px;color:var(--crose)">Nenhuma aluna cadastrada.</div>')
     +'</div>';
@@ -2672,8 +2673,10 @@ function renderMatriculas(c,a){
 var _aulasFiltroAluna='';
 function renderAulas(c,a){
   a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(mNovaAula())"><i class="ti ti-plus"></i> Registrar aula</button>';
+  // Resolver UUID da teacher logada para filtrar corretamente
+  var myTeacherUUID=_teacherIdMap[S.teacherId]||S.teacherId;
   var lista=S.perfil==='teacher'
-    ?AULAS.filter(function(r){return r.teacherId===S.teacherId;})
+    ?AULAS.filter(function(r){return r.teacherId===myTeacherUUID||r.teacherId===S.teacherId;})
     :AULAS;
   lista=lista.slice().sort(function(a,b){return b.data.localeCompare(a.data);});
   // Filtro por aluna
@@ -2728,10 +2731,12 @@ function mNovaAula(){
     +'<button class="btn btn-primary" onclick="salvarAula()">Registrar</button></div>';
 }
 
-function salvarAula(){
+async function salvarAula(){
   var alunoId=document.getElementById('na-aluno').value;
   if(!alunoId){showToast('Selecione a aluna.');return;}
-  var newAula={id:uuid(),alunoId:alunoId,teacherId:S.teacherId||'',
+  // Resolver UUID do banco para o teacherId local
+  var teacherUUID=await resolveTeacherId(S.teacherId)||S.teacherId||'';
+  var newAula={id:uuid(),alunoId:alunoId,teacherId:teacherUUID,
     data:document.getElementById('na-data').value,
     presenca:document.getElementById('na-pres').value,
     conteudo:document.getElementById('na-cont').value||'',
@@ -2944,12 +2949,121 @@ function toggleNF(id){var al=ALUNOS.find(function(a){return a.id===id;});if(al){
 // TEACHERS / REUNIÕES / EXTRAS / METAS
 // ══════════════════════════════════════════════════════
 function renderTeachers(c,a){
-  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Teachers</h3></div>'
-    +'<table class="tbl"><tr><th>Nome</th><th>Alunas</th><th>Retenção</th></tr>'
+  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Teachers — clique para ver alunos e histórico</h3></div>'
+    +'<table class="tbl"><tr><th>Nome</th><th>Alunos</th><th>Aulas este mês</th><th>Retenção</th><th></th></tr>'
     +TEACHERS.map(function(t){
-      var qtd=ALUNOS.filter(function(a){return a.teacherId===t.id;}).length;
-      return '<tr><td class="nm">'+t.nome+'</td><td>'+qtd+'</td><td>'+t.retencao+'%</td></tr>';
+      var tUUID=_teacherIdMap[t.id]||t.id;
+      var alunos=ALUNOS.filter(function(a){return a.teacherId===t.id||a.teacherId===tUUID;});
+      var hoje=new Date();
+      var aulasMes=AULAS.filter(function(a){
+        if(a.teacherId!==t.id&&a.teacherId!==tUUID) return false;
+        if(!a.data) return false;
+        var d=new Date(a.data); return d.getMonth()===hoje.getMonth()&&d.getFullYear()===hoje.getFullYear();
+      }).length;
+      return '<tr style="cursor:pointer" onclick="abrirPerfilTeacher(\''+t.id+'\')">'
+        +'<td class="nm" style="color:var(--cr)">'+t.nome+' <i class="ti ti-chevron-right" style="font-size:11px"></i></td>'
+        +'<td>'+alunos.length+'</td>'
+        +'<td>'+aulasMes+'</td>'
+        +'<td>'+t.retencao+'%</td>'
+        +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirPerfilTeacher(\''+t.id+'\')"><i class="ti ti-eye"></i> Ver</button></td>'
+        +'</tr>';
     }).join('')+'</table></div>';
+}
+
+function abrirPerfilTeacher(teacherLocalId){
+  var t=TEACHERS.find(function(x){return x.id===teacherLocalId;});
+  if(!t) return;
+  var tUUID=_teacherIdMap[teacherLocalId]||teacherLocalId;
+  var alunos=ALUNOS.filter(function(a){return a.teacherId===teacherLocalId||a.teacherId===tUUID;});
+  var hoje=new Date();
+  var aulasMes=AULAS.filter(function(a){
+    if(a.teacherId!==teacherLocalId&&a.teacherId!==tUUID) return false;
+    if(!a.data) return false;
+    var d=new Date(a.data); return d.getMonth()===hoje.getMonth()&&d.getFullYear()===hoje.getFullYear();
+  });
+  var custoMes=(calcCustoMesTeacher(teacherLocalId,hoje.getMonth(),hoje.getFullYear())
+    +calcCustoMesTeacher(tUUID,hoje.getMonth(),hoje.getFullYear()));
+
+  var html='<div class="mhdr"><h2>'+t.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="padding:0 20px 20px">'
+    // KPIs da teacher
+    +'<div class="sg g3" style="margin-bottom:16px">'
+    +'<div class="sc"><div class="sl">Alunos</div><div class="sv">'+alunos.length+'</div></div>'
+    +'<div class="sc"><div class="sl">Aulas este mês</div><div class="sv">'+aulasMes.length+'</div></div>'
+    +'<div class="sc warn"><div class="sl">Custo previsto</div><div class="sv">R$ '+custoMes.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
+    +'</div>'
+    // Lista de alunos clicáveis
+    +'<div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:8px">👩‍🎓 Alunos (clique para ver histórico)</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'
+    +alunos.map(function(al){
+      return '<button class="btn btn-ghost btn-sm" style="border:1px solid rgba(121,20,40,.2)" '
+        +'onclick="closeModal();abrirPerfilAlunoCoord(\''+al.id+'\')">'+al.nome+'</button>';
+    }).join('')
+    +'</div>'
+    // Histórico recente
+    +'<div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:8px">📖 Histórico recente</div>'
+    +(aulasMes.length
+      ?'<table class="tbl"><tr><th>Aluno</th><th>Data</th><th>Presença</th><th>Conteúdo</th></tr>'
+       +aulasMes.slice().sort(function(a,b){return b.data.localeCompare(a.data);}).slice(0,10).map(function(a){
+         var al2=ALUNOS.find(function(x){return x.id===a.alunoId;})||{nome:'—'};
+         return '<tr><td class="nm" style="cursor:pointer;color:var(--cr)" onclick="closeModal();abrirPerfilAlunoCoord(\''+a.alunoId+'\')">'+al2.nome+'</td>'
+           +'<td>'+fmtDateBr(a.data)+'</td><td>'+bdg(a.presenca)+'</td><td style="font-size:11px">'+a.conteudo+'</td></tr>';
+       }).join('')+'</table>'
+      :'<div style="text-align:center;padding:20px;color:var(--crose);font-size:12px">Nenhuma aula este mês.</div>')
+    +'</div>';
+  openModal(html);
+}
+
+function abrirPerfilAlunoCoord(alunoId){
+  var al=ALUNOS.find(function(a){return a.id===alunoId;});
+  if(!al) return;
+  var t=getTeacher(al.teacherId);
+  var aulasAluno=AULAS.filter(function(a){return a.alunoId===alunoId;})
+    .sort(function(a,b){return b.data.localeCompare(a.data);});
+  var presentes=aulasAluno.filter(function(a){return a.presenca==='Presente';}).length;
+  var freq=aulasAluno.length?Math.round(presentes/aulasAluno.length*100):100;
+
+  var html='<div class="mhdr"><h2>'+al.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="padding:0 20px 20px;max-height:75vh;overflow-y:auto">'
+    // Pedagógico
+    +'<div style="font-size:11px;font-weight:700;color:var(--cr);text-transform:uppercase;margin-bottom:8px">Pedagógico</div>'
+    +'<div class="sg g4" style="margin-bottom:16px">'
+    +'<div class="sc"><div class="sl">Nível</div><div class="sv" style="font-size:18px">'+al.nivel+'</div></div>'
+    +'<div class="sc"><div class="sl">Teacher</div><div class="sv" style="font-size:14px">'+t.nome+'</div></div>'
+    +'<div class="sc '+(freq<75?'warn':'')+'" ><div class="sl">Frequência</div><div class="sv">'+freq+'%</div></div>'
+    +'<div class="sc '+(al.faltas>3?'warn':'')+'" ><div class="sl">Faltas</div><div class="sv">'+al.faltas+'</div></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px;font-size:12px">'
+    +'<span>'+bdg(al.status)+'</span>'
+    +'<span style="color:var(--crose)">'+al.aulasSemana+'x/semana · '+al.tipo+'</span>'
+    +'</div>'
+    // Financeiro (só gestão e financeiro)
+    +(S.perfil==='gestao'||S.perfil==='financeiro'
+      ?'<div style="font-size:11px;font-weight:700;color:var(--cr);text-transform:uppercase;margin:16px 0 8px">Financeiro</div>'
+       +'<div class="sg g3" style="margin-bottom:16px">'
+       +'<div class="sc"><div class="sl">Plano</div><div class="sv" style="font-size:14px">'+al.plano+'</div></div>'
+       +'<div class="sc"><div class="sl">Mensalidade</div><div class="sv" style="font-size:14px">R$ '+parseFloat(al.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
+       +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'" ><div class="sl">Status fin.</div><div style="margin-top:6px">'+bdg(al.fin)+'</div></div>'
+       +'</div>'
+      :'')
+    // Histórico de aulas
+    +'<div style="font-size:11px;font-weight:700;color:var(--cr);text-transform:uppercase;margin:16px 0 8px">Histórico de aulas ('+aulasAluno.length+')</div>'
+    +(aulasAluno.length
+      ?'<div style="max-height:300px;overflow-y:auto">'
+       +aulasAluno.map(function(r){
+         return '<div style="border:1px solid rgba(121,20,40,.08);border-radius:8px;padding:10px;margin-bottom:6px">'
+           +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+           +'<span style="font-size:12px;font-weight:700;color:var(--cd)">'+fmtDateBr(r.data)+'</span>'
+           +bdg(r.presenca)+'</div>'
+           +(r.conteudo?'<div style="font-size:11px;color:var(--cd)">📖 '+r.conteudo+'</div>':'')
+           +(r.desempenho?'<div style="font-size:11px;color:var(--crose)">⭐ '+r.desempenho+' · 🗣️ '+r.speaking+'</div>':'')
+           +(r.homework?'<div style="font-size:11px;color:var(--crose)">📝 '+r.homework+'</div>':'')
+           +(r.dificuldades?'<div style="font-size:11px;color:#c0392b">⚠️ '+r.dificuldades+'</div>':'')
+           +'</div>';
+       }).join('')+'</div>'
+      :'<div style="text-align:center;padding:20px;color:var(--crose);font-size:12px">Nenhuma aula registrada.</div>')
+    +'</div>';
+  openModal(html);
 }
 
 function renderReunioes(c,a){
