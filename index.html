@@ -812,7 +812,8 @@ function entrarApp(perf){
   var sw=document.getElementById('sb-switch');
   if(S.duploPerfil){
     sw.classList.remove('hidden');
-    document.getElementById('sb-switch-label').textContent=S.perfilExtra==='teacher'?'🍎 Área da Teacher':'📚 Área Pedagógica';
+    var lblExtra=S.perfilExtra==='teacher'?'🍎 Área da Teacher':(S.perfil==='gestao'?'📚 Área da Coordenação':'🏢 Área da Diretoria');
+    document.getElementById('sb-switch-label').textContent=lblExtra;
   } else {
     sw.classList.add('hidden');
   }
@@ -844,8 +845,9 @@ function alternarPerfil(){
   });
   document.getElementById('sb-role').textContent=novoRole;
   document.getElementById('sb-switch-label').textContent=
-    novo==='teacher'?'🏢 Área da Diretoria':
-    novo==='pedagogico'?'🏢 Área da Diretoria':'🍎 Área da Teacher';
+    novo==='teacher'?(anterior==='gestao'?'🏢 Área da Diretoria':'📚 Área da Coordenação'):
+    novo==='pedagogico'?'📚 Área da Coordenação':
+    novo==='gestao'?'🏢 Área da Diretoria':'🍎 Área da Teacher';
   buildNav();
   goPage('dashboard');
   showToast('Perfil: '+novoRole+' ✅');
@@ -2008,6 +2010,64 @@ function toggleCampoDupla(){
   var bloco=document.getElementById('ca-dupla-bloco');
   if(bloco) bloco.style.display=(tipo==='dupla'?'block':'none');
 }
+function openEditarAula(aulaId){
+  var r=AULAS.find(function(a){return a.id===aulaId;});
+  if(!r) return;
+  var al=ALUNOS.find(function(a){return a.id===r.alunoId;});
+  var html='<div class="mhdr"><h2>Editar aula'+(al?' — '+al.nome:'')+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fgrid"><div class="fg"><label>Data</label><input type="date" id="ea-data" value="'+r.data+'"></div>'
+    +'<div class="fg"><label>Presença</label><select id="ea-pres">'
+    +'<option value="Presente"'+(r.presenca==='Presente'?' selected':'')+'>Presente</option>'
+    +'<option value="Faltou"'+(r.presenca==='Faltou'?' selected':'')+'>Faltou</option>'
+    +'<option value="Cancelada"'+(r.presenca==='Cancelada'?' selected':'')+'>Cancelada</option>'
+    +'<option value="Remarcada"'+(r.presenca==='Remarcada'?' selected':'')+'>Remarcada</option>'
+    +'<option value="Montada"'+(r.presenca==='Montada'?' selected':'')+'>🔧 Montada</option>'
+    +'</select></div></div>'
+    +'<div class="fg"><label>Conteúdo</label><input id="ea-cont" value="'+(r.conteudo||'')+'"></div>'
+    +'<div class="fgrid"><div class="fg"><label>Desempenho</label><select id="ea-desemp">'
+    +['Ótimo','Bom','Regular','Precisa melhorar'].map(function(v){return '<option'+(r.desempenho===v?' selected':'')+'>'+v+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="fg"><label>Speaking</label><select id="ea-speak">'
+    +['Ótimo','Bom','Regular'].map(function(v){return '<option'+(r.speaking===v?' selected':'')+'>'+v+'</option>';}).join('')
+    +'</select></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>Homework</label><input id="ea-hw" value="'+(r.homework||'')+'"></div>'
+    +'<div class="fg"><label>Dificuldades</label><input id="ea-dif" value="'+(r.dificuldades||'')+'"></div></div>'
+    +'<div class="fg"><label>Observações</label><input id="ea-obs" value="'+(r.obs||'')+'"></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarEdicaoAula(\''+aulaId+'\')">Salvar</button></div>';
+  openModal(html);
+}
+
+async function salvarEdicaoAula(aulaId){
+  var r=AULAS.find(function(a){return a.id===aulaId;});
+  if(!r) return;
+  r.data=document.getElementById('ea-data').value;
+  r.presenca=document.getElementById('ea-pres').value;
+  r.conteudo=document.getElementById('ea-cont').value||'';
+  r.desempenho=document.getElementById('ea-desemp').value;
+  r.speaking=document.getElementById('ea-speak').value;
+  r.homework=document.getElementById('ea-hw').value||'';
+  r.dificuldades=document.getElementById('ea-dif').value||'';
+  r.obs=document.getElementById('ea-obs').value||'';
+  await salvarAulaDB(r);
+  closeModal();
+  showToast('Aula atualizada! ✅');
+  renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+async function excluirAula(aulaId){
+  if(!confirm('Excluir esta aula? Essa ação não pode ser desfeita.')) return;
+  if(sb){
+    try{
+      var res=await sb.from('aulas').delete().eq('id',aulaId);
+      if(res.error){ showToast('Erro ao excluir.'); return; }
+    }catch(e){ showToast('Erro ao excluir.'); return; }
+  }
+  AULAS=AULAS.filter(function(a){return a.id!==aulaId;});
+  showToast('Aula excluída. ✅');
+  renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
 function atualizarValorAuto(){
   var tipo=(document.getElementById('ca-tipo')||{value:'individual'}).value;
   var aulas=parseInt((document.getElementById('ca-aulas-semana')||{value:'1'}).value)||1;
@@ -2694,8 +2754,12 @@ function renderAulas(c,a){
           return '<div style="border:1px solid rgba(121,20,40,.07);border-radius:10px;padding:14px;margin-bottom:10px;background:rgba(121,20,40,.02)">'
             +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
             +'<div style="font-weight:700;color:var(--cd);font-size:13px">'+(al?al.nome:'—')+'</div>'
-            +'<div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'+bdg(r.presenca)
+            +'<div style="display:flex;gap:6px;align-items:center">'
+            +'<span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'
+            +bdg(r.presenca)
             +(S.perfil==='gestao'||S.perfil==='financeiro'?'<span style="font-size:10px;background:rgba(121,20,40,.08);color:var(--cr);border-radius:4px;padding:1px 6px">R$ '+calcCustoAula(r)+'</span>':'')
+            +'<button class="btn btn-ghost btn-sm" onclick="openEditarAula(\''+r.id+'\')"><i class="ti ti-pencil"></i></button>'
+            +'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="excluirAula(\''+r.id+'\')"><i class="ti ti-trash"></i></button>'
             +'</div>'
             +'</div>'
             +(r.conteudo?'<div style="font-size:12px;color:var(--cd);margin-bottom:4px">📖 <strong>Conteúdo:</strong> '+r.conteudo+'</div>':'')
