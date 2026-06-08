@@ -2010,6 +2010,64 @@ function toggleCampoDupla(){
   var bloco=document.getElementById('ca-dupla-bloco');
   if(bloco) bloco.style.display=(tipo==='dupla'?'block':'none');
 }
+function openEditarAula(aulaId){
+  var r=AULAS.find(function(a){return a.id===aulaId;});
+  if(!r) return;
+  var al=ALUNOS.find(function(a){return a.id===r.alunoId;});
+  var html='<div class="mhdr"><h2>Editar aula'+(al?' — '+al.nome:'')+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fgrid"><div class="fg"><label>Data</label><input type="date" id="ea-data" value="'+r.data+'"></div>'
+    +'<div class="fg"><label>Presença</label><select id="ea-pres">'
+    +'<option value="Presente"'+(r.presenca==='Presente'?' selected':'')+'>Presente</option>'
+    +'<option value="Faltou"'+(r.presenca==='Faltou'?' selected':'')+'>Faltou</option>'
+    +'<option value="Cancelada"'+(r.presenca==='Cancelada'?' selected':'')+'>Cancelada</option>'
+    +'<option value="Remarcada"'+(r.presenca==='Remarcada'?' selected':'')+'>Remarcada</option>'
+    +'<option value="Montada"'+(r.presenca==='Montada'?' selected':'')+'>🔧 Montada</option>'
+    +'</select></div></div>'
+    +'<div class="fg"><label>Conteúdo</label><input id="ea-cont" value="'+(r.conteudo||'')+'"></div>'
+    +'<div class="fgrid"><div class="fg"><label>Desempenho</label><select id="ea-desemp">'
+    +['Ótimo','Bom','Regular','Precisa melhorar'].map(function(v){return '<option'+(r.desempenho===v?' selected':'')+'>'+v+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="fg"><label>Speaking</label><select id="ea-speak">'
+    +['Ótimo','Bom','Regular'].map(function(v){return '<option'+(r.speaking===v?' selected':'')+'>'+v+'</option>';}).join('')
+    +'</select></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>Homework</label><input id="ea-hw" value="'+(r.homework||'')+'"></div>'
+    +'<div class="fg"><label>Dificuldades</label><input id="ea-dif" value="'+(r.dificuldades||'')+'"></div></div>'
+    +'<div class="fg"><label>Observações</label><input id="ea-obs" value="'+(r.obs||'')+'"></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarEdicaoAula(\''+aulaId+'\')">Salvar</button></div>';
+  openModal(html);
+}
+
+async function salvarEdicaoAula(aulaId){
+  var r=AULAS.find(function(a){return a.id===aulaId;});
+  if(!r) return;
+  r.data=document.getElementById('ea-data').value;
+  r.presenca=document.getElementById('ea-pres').value;
+  r.conteudo=document.getElementById('ea-cont').value||'';
+  r.desempenho=document.getElementById('ea-desemp').value;
+  r.speaking=document.getElementById('ea-speak').value;
+  r.homework=document.getElementById('ea-hw').value||'';
+  r.dificuldades=document.getElementById('ea-dif').value||'';
+  r.obs=document.getElementById('ea-obs').value||'';
+  await salvarAulaDB(r);
+  closeModal();
+  showToast('Aula atualizada! ✅');
+  renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+async function excluirAula(aulaId){
+  if(!confirm('Excluir esta aula? Essa ação não pode ser desfeita.')) return;
+  if(sb){
+    try{
+      var res=await sb.from('aulas').delete().eq('id',aulaId);
+      if(res.error){ showToast('Erro ao excluir.'); console.warn(res.error); return; }
+    }catch(e){ showToast('Erro ao excluir.'); return; }
+  }
+  AULAS=AULAS.filter(function(a){return a.id!==aulaId;});
+  showToast('Aula excluída. ✅');
+  renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
 function atualizarValorAuto(){
   var tipo=(document.getElementById('ca-tipo')||{value:'individual'}).value;
   var aulas=parseInt((document.getElementById('ca-aulas-semana')||{value:'1'}).value)||1;
@@ -2673,31 +2731,64 @@ function renderMatriculas(c,a){
 // AULAS / RELATÓRIOS
 // ══════════════════════════════════════════════════════
 var _aulasFiltroAluna='';
+var _aulasFiltroTeacher='';
 function renderAulas(c,a){
   a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(mNovaAula())"><i class="ti ti-plus"></i> Registrar aula</button>';
-  // Resolver UUID da teacher logada para filtrar corretamente
   var myTeacherUUID=_teacherIdMap[S.teacherId]||S.teacherId;
-  var lista=S.perfil==='teacher'
+  var listaBase=S.perfil==='teacher'
     ?AULAS.filter(function(r){return r.teacherId===myTeacherUUID||r.teacherId===S.teacherId;})
     :AULAS;
-  lista=lista.slice().sort(function(a,b){return b.data.localeCompare(a.data);});
-  // Filtro por aluna
-  var alunaOpts='<option value="">Todas as alunas</option>'
-    +byName(myAlunos()).map(function(al){return '<option value="'+al.id+'"'+(al.id===_aulasFiltroAluna?' selected':'')+'>'+al.nome+'</option>';}).join('');
-  if(_aulasFiltroAluna) lista=lista.filter(function(r){return r.alunoId===_aulasFiltroAluna;});
-  c.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
-    +'<label style="font-size:11px;font-weight:700;color:var(--crose);white-space:nowrap">Filtrar por aluna:</label>'
-    +'<select id="filtro-aluna" style="padding:7px 12px;border-radius:8px;border:1.5px solid rgba(121,20,40,.18);background:#fff;color:var(--cd);font-size:12px;font-family:var(--font-sans);outline:none">'+alunaOpts+'</select>'
+
+  // Filtro por teacher (gestão/pedagógico)
+  var teacherOpts='';
+  if(S.perfil!=='teacher'){
+    teacherOpts='<option value="">Todas as teachers</option>'
+      +TEACHERS.map(function(t){
+        var tUUID=_teacherIdMap[t.id]||t.id;
+        return '<option value="'+tUUID+'"'+((tUUID===_aulasFiltroTeacher||t.id===_aulasFiltroTeacher)?' selected':'')+'>'+t.nome+'</option>';
+      }).join('');
+  }
+
+  // Filtro por aluna — filtrado pela teacher selecionada
+  var alunosFiltrados=S.perfil!=='teacher'&&_aulasFiltroTeacher
+    ?ALUNOS.filter(function(al){return al.teacherId===_aulasFiltroTeacher||_teacherIdMap[al.teacherId]===_aulasFiltroTeacher;})
+    :myAlunos();
+  var alunaOpts='<option value="">Todos os alunos</option>'
+    +byName(alunosFiltrados).map(function(al){return '<option value="'+al.id+'"'+(al.id===_aulasFiltroAluna?' selected':'')+'>'+al.nome+'</option>';}).join('');
+
+  // Aplicar filtros
+  var lista=listaBase.slice();
+  if(_aulasFiltroTeacher) lista=lista.filter(function(r){return r.teacherId===_aulasFiltroTeacher;});
+  if(_aulasFiltroAluna)   lista=lista.filter(function(r){return r.alunoId===_aulasFiltroAluna;});
+  lista.sort(function(a,b){return b.data.localeCompare(a.data);});
+
+  var selectStyle='padding:7px 12px;border-radius:8px;border:1.5px solid rgba(121,20,40,.18);background:#fff;color:var(--cd);font-size:12px;font-family:var(--font-sans);outline:none';
+
+  c.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+    +(S.perfil!=='teacher'?'<label style="font-size:11px;font-weight:700;color:var(--crose);white-space:nowrap">Teacher:</label>'
+      +'<select id="filtro-teacher" style="'+selectStyle+'">'+teacherOpts+'</select>':'')
+    +'<label style="font-size:11px;font-weight:700;color:var(--crose);white-space:nowrap">Aluno:</label>'
+    +'<select id="filtro-aluna" style="'+selectStyle+'">'+alunaOpts+'</select>'
+    +'<button class="btn btn-ghost btn-sm" onclick="limparFiltrosAulas()">Limpar</button>'
     +'</div>'
     +'<div class="card"><div class="ch"><i class="ti ti-book"></i><h3>Histórico de aulas ('+lista.length+')</h3></div>'
     +(lista.length
       ?lista.map(function(r){
           var al=ALUNOS.find(function(a){return a.id===r.alunoId;});
+          var t=getTeacher(r.teacherId);
+          var podeEditar=S.perfil==='teacher'||S.perfil==='gestao'||S.perfil==='pedagogico';
           return '<div style="border:1px solid rgba(121,20,40,.07);border-radius:10px;padding:14px;margin-bottom:10px;background:rgba(121,20,40,.02)">'
             +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+            +'<div>'
             +'<div style="font-weight:700;color:var(--cd);font-size:13px">'+(al?al.nome:'—')+'</div>'
-            +'<div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'+bdg(r.presenca)
+            +(S.perfil!=='teacher'?'<div style="font-size:11px;color:var(--crose)">👩‍🏫 '+t.nome+'</div>':'')
+            +'</div>'
+            +'<div style="display:flex;gap:6px;align-items:center">'
+            +'<span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'
+            +bdg(r.presenca)
             +(S.perfil==='gestao'||S.perfil==='financeiro'?'<span style="font-size:10px;background:rgba(121,20,40,.08);color:var(--cr);border-radius:4px;padding:1px 6px">R$ '+calcCustoAula(r)+'</span>':'')
+            +(podeEditar?'<button class="btn btn-ghost btn-sm" onclick="openEditarAula(\''+r.id+'\')"><i class="ti ti-pencil"></i></button>':'')
+            +(podeEditar?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="excluirAula(\''+r.id+'\')"><i class="ti ti-trash"></i></button>':'')
             +'</div>'
             +'</div>'
             +(r.conteudo?'<div style="font-size:12px;color:var(--cd);margin-bottom:4px">📖 <strong>Conteúdo:</strong> '+r.conteudo+'</div>':'')
@@ -2707,13 +2798,27 @@ function renderAulas(c,a){
             +(r.dificuldades?'<div style="font-size:11px;color:#c0392b">⚠️ Dificuldades: '+r.dificuldades+'</div>':'')
             +'</div>';
         }).join('')
-      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhum relatório ainda.</div>')
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aula encontrada.</div>')
     +'</div>';
-  // Listener no filtro
+
   setTimeout(function(){
-    var f=document.getElementById('filtro-aluna');
-    if(f)f.addEventListener('change',function(){_aulasFiltroAluna=this.value;renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));});
+    var ft=document.getElementById('filtro-teacher');
+    var fa=document.getElementById('filtro-aluna');
+    if(ft) ft.addEventListener('change',function(){
+      _aulasFiltroTeacher=this.value;
+      _aulasFiltroAluna=''; // reset aluno ao mudar teacher
+      renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
+    });
+    if(fa) fa.addEventListener('change',function(){
+      _aulasFiltroAluna=this.value;
+      renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
+    });
   },0);
+}
+
+function limparFiltrosAulas(){
+  _aulasFiltroTeacher=''; _aulasFiltroAluna='';
+  renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
 function mNovaAula(){
