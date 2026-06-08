@@ -392,7 +392,7 @@ var TEACHERS=[
   {id:'t1',nome:'Kessia',email:'kessia@amenina.com'},
   {id:'t2',nome:'Alice',email:'alice@amenina.com'},
   {id:'t3',nome:'Aline',email:'aline@amenina.com'},
-  {id:'t4',nome:'Nívive',email:'nivive@amenina.com'},
+  {id:'t4',nome:'Nínive',email:'ninive@amenina.com'},
   {id:'t5',nome:'Bruna',email:'bruna@amenina.com'},
   {id:'t6',nome:'Islla',email:'islla@amenina.com'},
   {id:'t7',nome:'Isabella',email:'isabella@amenina.com'},
@@ -405,7 +405,7 @@ var EQUIPE=[
   {id:'e4',nome:'Raynara',role:'financeiro',roleLabel:'Financeiro',usuario:'raynara',senha:'Financeiro3@',avatar:'RA',teacherId:null,duploPerfil:false},
   {id:'e5',nome:'Alice',role:'teacher',roleLabel:'Teacher',usuario:'alice',senha:'Teachers2026@',avatar:'AL',teacherId:'t2',duploPerfil:false},
   {id:'e6',nome:'Aline',role:'teacher',roleLabel:'Teacher',usuario:'aline',senha:'Teachers2026@',avatar:'AI',teacherId:'t3',duploPerfil:false},
-  {id:'e7',nome:'Nívive',role:'teacher',roleLabel:'Teacher',usuario:'nivive',senha:'Teachers2026@',avatar:'NI',teacherId:'t4',duploPerfil:false},
+  {id:'e7',nome:'Nínive',role:'teacher',roleLabel:'Teacher',usuario:'ninive',senha:'Teachers2026@',avatar:'NI',teacherId:'t4',duploPerfil:false},
   {id:'e8',nome:'Bruna',role:'teacher',roleLabel:'Teacher',usuario:'bruna',senha:'Teachers2026@',avatar:'BR',teacherId:'t5',duploPerfil:false},
   {id:'e9',nome:'Islla',role:'teacher',roleLabel:'Teacher',usuario:'islla',senha:'Teachers2026@',avatar:'IS',teacherId:'t6',duploPerfil:false},
   {id:'e10',nome:'Isabella',role:'teacher',roleLabel:'Teacher',usuario:'isabella',senha:'Teachers2026@',avatar:'IB',teacherId:'t7',duploPerfil:false},
@@ -492,8 +492,9 @@ async function carregarDados(){
       }
     }catch(e){console.warn('Erro carregar horários:',e);}
     console.log('Dados carregados:',ALUNOS.length,'alunos',TEACHERS.length,'teachers');
-    // Carregar despesas
+    // Carregar despesas e livros
     await carregarDespesasDB();
+    await carregarLivrosDB();
   }catch(e){ console.warn('Supabase offline:',e); }
 }
 
@@ -529,7 +530,7 @@ function mapLead(r){
     etapa:r.etapa||'lead',obs:r.obs||'',data:r.created_at?r.created_at.split('T')[0]:''};
 }
 function mapAula(r){
-  return {id:r.id,alunoId:r.aluno_id||'',teacherId:r.teacher_id||'',data:r.data||'',
+  return {id:r.id,alunoId:r.aluno_id||'',teacherId:r.teacher_id||'',data:r.data||'',reposicao:r.reposicao||false,
     presenca:r.presenca||'Presente',conteudo:r.conteudo||'',desempenho:r.desempenho||'',
     speaking:r.speaking||'',participacao:r.participacao||'',homework:r.homework||'',
     dificuldades:r.dificuldades||'',obs:r.obs||''};
@@ -660,7 +661,7 @@ async function salvarAulaDB(a){
       presenca:a.presenca||'Presente',conteudo:a.conteudo||null,
       desempenho:a.desempenho||null,speaking:a.speaking||null,
       participacao:a.participacao||null,homework:a.homework||null,
-      dificuldades:a.dificuldades||null,obs:a.obs||null
+      dificuldades:a.dificuldades||null,obs:a.obs||null,reposicao:a.reposicao||false
     };
     if(a.id&&a.id.length===36) payload.id=a.id;
     var r=await sb.from('aulas').upsert(payload,{onConflict:'id'});
@@ -879,6 +880,7 @@ var NAVS={
     {id:'matriculas',l:'Matrículas',ic:'ti-file-plus'},
     {id:'metas',l:'Metas',ic:'ti-trophy'},
     {s:'Pedagógico'},{id:'aulas',l:'Relatórios de Aulas',ic:'ti-book'},
+    {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
     {id:'teachers',l:'Teachers',ic:'ti-school'},
     {id:'reunioes',l:'Reuniões',ic:'ti-calendar-event'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
@@ -889,6 +891,7 @@ var NAVS={
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {id:'planos',l:'Planos de Estudo',ic:'ti-notebook'},
+    {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
     {s:'Gestão Pessoal'},{id:'notas',l:'Minhas Notas',ic:'ti-notebook'},
     {id:'tarefas',l:'Tarefas',ic:'ti-checklist'},
   ],
@@ -897,6 +900,7 @@ var NAVS={
     {id:'alunos',l:'Alunos',ic:'ti-users'},
     {id:'aulas',l:'Relatórios de Aulas',ic:'ti-book'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
+    {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
     {id:'retencao',l:'Alunos em Risco',ic:'ti-alert-circle'},
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {s:'Agenda'},{id:'horarios',l:'Grade de Horários',ic:'ti-calendar-time'},
@@ -935,7 +939,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics'};
+  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros'};
 
 function buildNav(){
   var items=NAVS[S.perfil]||[];
@@ -978,6 +982,7 @@ function goPage(id){
     extras:renderExtras,reunioes:renderReunioes,tarefas:renderTarefas,
     notas:renderNotas,horarios:renderHorarios,
     relatorios:renderRelatorios,
+    livros:renderLivros,
   };
   (pages[id]||renderEmpty)(c,a);
 }
@@ -1024,6 +1029,7 @@ function calcCustoMesTeacher(teacherId, mes, ano){
 
 // ── FLUXO DE CAIXA / DESPESAS ────────────────────────────
 var DESPESAS = [];
+var LIVROS = []; // {id, titulo, nivel, link, liberadoPara:[alunoId,...], addedBy}
 
 function salvarDespesasDB(){
   if(!sb) return;
@@ -2786,6 +2792,7 @@ function renderAulas(c,a){
             +'<div style="display:flex;gap:6px;align-items:center">'
             +'<span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'
             +bdg(r.presenca)
+            +(r.reposicao?'<span style="font-size:10px;background:#fef3e0;color:#ca8a04;border-radius:4px;padding:1px 6px;font-weight:700">🔄 Reposição</span>':'')
             +(S.perfil==='gestao'||S.perfil==='financeiro'?'<span style="font-size:10px;background:rgba(121,20,40,.08);color:var(--cr);border-radius:4px;padding:1px 6px">R$ '+calcCustoAula(r)+'</span>':'')
             +(podeEditar?'<button class="btn btn-ghost btn-sm" onclick="openEditarAula(\''+r.id+'\')"><i class="ti ti-pencil"></i></button>':'')
             +(podeEditar?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="excluirAula(\''+r.id+'\')"><i class="ti ti-trash"></i></button>':'')
@@ -2795,7 +2802,8 @@ function renderAulas(c,a){
             +(r.desempenho?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">⭐ Desempenho: '+r.desempenho+'</div>':'')
             +(r.speaking?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">🗣️ Speaking: '+r.speaking+'</div>':'')
             +(r.homework?'<div style="font-size:11px;color:var(--crose);margin-bottom:2px">📝 Homework: '+r.homework+'</div>':'')
-            +(r.dificuldades?'<div style="font-size:11px;color:#c0392b">⚠️ Dificuldades: '+r.dificuldades+'</div>':'')
+            +((S.perfil==='teacher'||S.perfil==='gestao'||S.perfil==='pedagogico')&&r.dificuldades?'<div style="font-size:11px;color:#c0392b">⚠️ Dificuldades: '+r.dificuldades+'</div>':'')
+            +((S.perfil==='teacher'||S.perfil==='gestao'||S.perfil==='pedagogico')&&r.obs?'<div style="font-size:11px;color:#666">💬 Obs: '+r.obs+'</div>':'')
             +'</div>';
         }).join('')
       :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aula encontrada.</div>')
@@ -2821,13 +2829,28 @@ function limparFiltrosAulas(){
   renderAulas(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
+function contarReposicoesDoMes(alunoId){
+  var hoje=new Date();
+  var mes=hoje.getMonth(); var ano=hoje.getFullYear();
+  return AULAS.filter(function(a){
+    if(a.alunoId!==alunoId||!a.reposicao) return false;
+    var d=new Date(a.data);
+    return d.getMonth()===mes&&d.getFullYear()===ano;
+  }).length;
+}
+
 function mNovaAula(){
   var meusAlunos=myAlunos();
   return '<div class="mhdr"><h2>Registrar aula</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
-    +'<div class="fgrid"><div class="fg"><label>Aluna</label><select id="na-aluno"><option value="">Selecione</option>'+meusAlunos.map(function(al){return '<option value="'+al.id+'">'+al.nome+'</option>';}).join('')+'</select></div>'
+    +'<div class="fgrid"><div class="fg"><label>Aluna</label><select id="na-aluno" onchange="verificarLimiteReposicao()"><option value="">Selecione</option>'+meusAlunos.map(function(al){return '<option value="'+al.id+'">'+al.nome+'</option>';}).join('')+'</select></div>'
     +'<div class="fg"><label>Data</label><input type="date" id="na-data" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
     +'<div class="fgrid"><div class="fg"><label>Presença</label><select id="na-pres"><option value="Presente">Presente</option><option value="Faltou">Faltou</option><option value="Cancelada">Cancelada</option><option value="Remarcada">Remarcada</option><option value="Montada">🔧 Montada</option></select></div>'
     +'<div class="fg"><label>Desempenho</label><select id="na-desemp"><option value="Ótimo">Ótimo</option><option value="Bom">Bom</option><option value="Regular">Regular</option><option value="Precisa melhorar">Precisa melhorar</option></select></div></div>'
+    +'<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-radius:8px;background:rgba(121,20,40,.04);padding:10px 14px;margin-bottom:8px">'
+    +'<input type="checkbox" id="na-reposicao" style="width:16px;height:16px;cursor:pointer" onchange="verificarLimiteReposicao()">'
+    +'<label for="na-reposicao" style="font-size:13px;font-weight:600;color:var(--cr);cursor:pointer">🔄 Esta é uma aula de reposição</label>'
+    +'<span id="rep-contador" style="font-size:11px;color:var(--crose);margin-left:auto"></span>'
+    +'</div>'
     +'<div class="fg"><label>Conteúdo da aula</label><input id="na-cont" placeholder="Ex: Lesson 1A - Page 14"></div>'
     +'<div class="fgrid"><div class="fg"><label>Speaking</label><select id="na-speak"><option value="Ótimo">Ótimo</option><option value="Bom">Bom</option><option value="Regular">Regular</option></select></div>'
     +'<div class="fg"><label>Participação</label><select id="na-part"><option value="Ótimo">Ótimo</option><option value="Bom">Bom</option><option value="Regular">Regular</option></select></div></div>'
@@ -2838,12 +2861,31 @@ function mNovaAula(){
     +'<button class="btn btn-primary" onclick="salvarAula()">Registrar</button></div>';
 }
 
+function verificarLimiteReposicao(){
+  var alunoId=(document.getElementById('na-aluno')||{value:''}).value;
+  var cb=document.getElementById('na-reposicao');
+  var cont=document.getElementById('rep-contador');
+  if(!alunoId||!cont) return;
+  var qtd=contarReposicoesDoMes(alunoId);
+  cont.textContent=qtd+'/4 reposições este mês';
+  cont.style.color=qtd>=4?'#dc2626':'var(--crose)';
+  if(cb&&qtd>=4&&cb.checked){
+    cb.checked=false;
+    showToast('⚠️ Limite de 4 reposições mensais atingido para este aluno!');
+  }
+}
+
 async function salvarAula(){
   var alunoId=document.getElementById('na-aluno').value;
   if(!alunoId){showToast('Selecione a aluna.');return;}
   // Resolver UUID do banco para o teacherId local
   var teacherUUID=await resolveTeacherId(S.teacherId)||S.teacherId||'';
-  var newAula={id:uuid(),alunoId:alunoId,teacherId:teacherUUID,
+  // Verificar limite de reposições
+  var isReposicao=document.getElementById('na-reposicao')&&document.getElementById('na-reposicao').checked;
+  if(isReposicao&&contarReposicoesDoMes(alunoId)>=4){
+    showToast('⚠️ Limite de 4 reposições mensais atingido para este aluno!'); return;
+  }
+  var newAula={id:uuid(),alunoId:alunoId,teacherId:teacherUUID,reposicao:isReposicao,
     data:document.getElementById('na-data').value,
     presenca:document.getElementById('na-pres').value,
     conteudo:document.getElementById('na-cont').value||'',
@@ -3165,7 +3207,6 @@ function abrirPerfilAlunoCoord(alunoId){
            +(r.conteudo?'<div style="font-size:11px;color:var(--cd)">📖 '+r.conteudo+'</div>':'')
            +(r.desempenho?'<div style="font-size:11px;color:var(--crose)">⭐ '+r.desempenho+' · 🗣️ '+r.speaking+'</div>':'')
            +(r.homework?'<div style="font-size:11px;color:var(--crose)">📝 '+r.homework+'</div>':'')
-           +(r.dificuldades?'<div style="font-size:11px;color:#c0392b">⚠️ '+r.dificuldades+'</div>':'')
            +'</div>';
        }).join('')+'</div>'
       :'<div style="text-align:center;padding:20px;color:var(--crose);font-size:12px">Nenhuma aula registrada.</div>')
@@ -3541,8 +3582,138 @@ window.addEventListener('message',function(e){
     if(fill) fill.style.width=pct+'%';
   }
 });
+// ── LIVROS ──────────────────────────────────────────────
+async function carregarLivrosDB(){
+  if(!sb) return;
+  try{
+    var r=await sb.from('livros').select('*');
+    if(r.data) LIVROS=r.data.map(function(l){
+      return {id:l.id,titulo:l.titulo,nivel:l.nivel||'',link:l.link,
+        liberadoPara:l.liberado_para||[],addedBy:l.added_by||''};
+    });
+  }catch(e){ console.warn('Livros: tabela pode não existir ainda',e); }
+}
+
+async function salvarLivroDB(l){
+  if(!sb) return;
+  try{
+    var r=await sb.from('livros').upsert({
+      id:l.id,titulo:l.titulo,nivel:l.nivel||'',link:l.link,
+      liberado_para:l.liberadoPara||[],added_by:l.addedBy||''
+    },{onConflict:'id'});
+    if(r.error) console.warn('Erro salvar livro:',r.error.message);
+  }catch(e){ console.warn('Erro salvarLivroDB:',e); }
+}
+
+function renderLivros(c,a){
+  var podeGerenciar=S.perfil==='gestao'||S.perfil==='pedagogico'||S.perfil==='teacher';
+  if(podeGerenciar){
+    a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openAdicionarLivro()"><i class="ti ti-plus"></i> Adicionar livro</button>';
+  }
+  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-book-2"></i><h3>Biblioteca de Livros</h3></div>'
+    +(LIVROS.length
+      ?'<table class="tbl"><tr><th>Título</th><th>Nível</th><th>Alunos liberados</th><th></th></tr>'
+       +LIVROS.map(function(l){
+         var liberados=l.liberadoPara||[];
+         var nomesLib=liberados.map(function(id){
+           var al=ALUNOS.find(function(a){return a.id===id;});
+           return al?al.nome:'';
+         }).filter(Boolean).join(', ')||'Nenhum';
+         return '<tr>'
+           +'<td class="nm">'+l.titulo+'</td>'
+           +'<td>'+l.nivel+'</td>'
+           +'<td style="font-size:11px;color:var(--crose)">'+nomesLib+'</td>'
+           +'<td style="display:flex;gap:4px">'
+           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" onclick="openLiberarLivro(\''+l.id+'\')"><i class="ti ti-user-plus"></i> Liberar</button>':'')
+           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="removerLivro(\''+l.id+'\')"><i class="ti ti-trash"></i></button>':'')
+           +'</td></tr>';
+       }).join('')+'</table>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhum livro cadastrado ainda.</div>')
+    +'</div>';
+}
+
+function openAdicionarLivro(){
+  var html='<div class="mhdr"><h2>Adicionar livro</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fg"><label>Título</label><input id="liv-titulo" placeholder="Ex: English File Beginner"></div>'
+    +'<div class="fgrid"><div class="fg"><label>Nível</label><select id="liv-nivel"><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option></select></div>'
+    +'<div class="fg"><label>Link do Google Drive</label><input id="liv-link" placeholder="https://drive.google.com/..."></div></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="adicionarLivro()">Salvar</button></div>';
+  openModal(html);
+}
+
+async function adicionarLivro(){
+  var titulo=(document.getElementById('liv-titulo')||{value:''}).value.trim();
+  var nivel=(document.getElementById('liv-nivel')||{value:'A1'}).value;
+  var link=(document.getElementById('liv-link')||{value:''}).value.trim();
+  if(!titulo||!link){showToast('Preencha título e link.');return;}
+  var l={id:uuid(),titulo:titulo,nivel:nivel,link:link,liberadoPara:[],addedBy:S.userName||''};
+  LIVROS.push(l);
+  await salvarLivroDB(l);
+  showToast('Livro adicionado! ✅');
+  closeModal();
+  renderLivros(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+function openLiberarLivro(livroId){
+  var l=LIVROS.find(function(x){return x.id===livroId;});
+  if(!l) return;
+  var meusAlunos=S.perfil==='teacher'
+    ?ALUNOS.filter(function(a){var tid=_teacherIdMap[S.teacherId]||S.teacherId;return a.teacherId===tid||a.teacherId===S.teacherId;})
+    :ALUNOS;
+  var html='<div class="mhdr"><h2>Liberar — '+l.titulo+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="padding:14px 0"><div style="font-size:12px;font-weight:700;color:var(--crose);margin-bottom:10px">Selecione os alunos que terão acesso:</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto">'
+    +byName(meusAlunos).map(function(al){
+      var checked=(l.liberadoPara||[]).includes(al.id);
+      return '<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(121,20,40,.03);cursor:pointer">'
+        +'<input type="checkbox" value="'+al.id+'" '+(checked?'checked':'')+' style="width:15px;height:15px">'
+        +'<span style="font-size:13px;color:var(--cd)">'+al.nome+'</span>'
+        +'<span style="font-size:11px;color:var(--crose);margin-left:auto">'+al.nivel+'</span>'
+        +'</label>';
+    }).join('')
+    +'</div></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarLiberacao(\''+livroId+'\')">Salvar</button></div>';
+  openModal(html);
+}
+
+async function salvarLiberacao(livroId){
+  var l=LIVROS.find(function(x){return x.id===livroId;});
+  if(!l) return;
+  var checks=document.querySelectorAll('input[type=checkbox]:not(#na-reposicao)');
+  l.liberadoPara=Array.from(checks).filter(function(c){return c.checked&&c.value!=='on';}).map(function(c){return c.value;});
+  await salvarLivroDB(l);
+  showToast('Acesso atualizado! ✅');
+  closeModal();
+  renderLivros(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+async function removerLivro(livroId){
+  if(!confirm('Remover este livro?')) return;
+  if(sb){ try{ await sb.from('livros').delete().eq('id',livroId); }catch(e){} }
+  LIVROS=LIVROS.filter(function(l){return l.id!==livroId;});
+  showToast('Livro removido.');
+  renderLivros(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
 function renderAluMateriais(c){
-  c.innerHTML='<div class="card" style="text-align:center;padding:60px;color:var(--crose)"><i class="ti ti-files" style="font-size:48px;display:block;margin-bottom:12px"></i><div style="font-size:14px;color:var(--cd);font-weight:600">Materiais</div><div style="font-size:12px;margin-top:4px">Seus materiais de aula aparecerão aqui em breve!</div></div>';
+  var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
+  var meuId=al?al.id:'';
+  var meusLivros=LIVROS.filter(function(l){return (l.liberadoPara||[]).includes(meuId);});
+  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-book-2"></i><h3>📚 Meus Livros</h3></div>'
+    +(meusLivros.length
+      ?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:0 16px 16px">'
+       +meusLivros.map(function(l){
+         return '<div style="background:rgba(121,20,40,.04);border-radius:10px;padding:16px;border:1px solid rgba(121,20,40,.1)">'
+           +'<i class="ti ti-book-2" style="font-size:28px;color:var(--cr);display:block;margin-bottom:8px"></i>'
+           +'<div style="font-size:13px;font-weight:700;color:var(--cd);margin-bottom:4px">'+l.titulo+'</div>'
+           +'<div style="font-size:11px;color:var(--crose);margin-bottom:12px">Nível '+l.nivel+'</div>'
+           +'<a href="'+l.link+'" target="_blank" class="btn btn-primary btn-sm" style="width:100%;text-align:center"><i class="ti ti-download"></i> Acessar livro</a>'
+           +'</div>';
+       }).join('')+'</div>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)"><i class="ti ti-book-off" style="font-size:36px;display:block;margin-bottom:8px"></i>Nenhum livro disponível ainda.<br><span style="font-size:11px">Sua teacher irá liberar o material em breve.</span></div>')
+    +'</div>';
 }
 
 function renderAluExtras(c){
