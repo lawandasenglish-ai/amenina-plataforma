@@ -1600,8 +1600,13 @@ function getTeacher(id){
   return {nome:'—'};
 }
 function myAlunos(){
-  if(S.perfil==='teacher'&&S.teacherId)
-    return byName(ALUNOS.filter(function(a){return a.teacherId===S.teacherId;}));
+  if(S.perfil==='teacher'&&S.teacherId){
+    // Checar ID local (t0, t1...) E UUID do banco
+    var tUUID=_teacherIdMap[S.teacherId]||S.teacherId;
+    return byName(ALUNOS.filter(function(a){
+      return a.teacherId===S.teacherId||a.teacherId===tUUID;
+    }));
+  }
   return byName(ALUNOS);
 }
 function fmtDate(d){return d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});}
