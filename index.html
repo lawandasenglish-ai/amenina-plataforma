@@ -819,18 +819,23 @@ function entrarApp(perf){
   } else {
     sw.classList.add('hidden');
   }
-  // Renderizar imediatamente
+  // Mostrar loading enquanto carrega dados do banco
   buildNav();
-  goPage('dashboard');
-  // Testar e carregar dados do Supabase em background
+  var pc=document.getElementById('pc');
+  var tba=document.getElementById('tb-actions');
+  if(pc) pc.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
+    +'<div style="width:40px;height:40px;border:3px solid rgba(121,20,40,.2);border-top-color:var(--cr);border-radius:50%;animation:spin 0.8s linear infinite"></div>'
+    +'<div style="font-size:13px;color:var(--crose)">Carregando dados...</div></div>';
+  // Carregar dados PRIMEIRO, depois renderizar
   testarConexaoSupabase();
   carregarDados().then(function(){
     buildNav();
-    // Re-renderizar apenas a página atual para refletir dados do banco
-    var pc=document.getElementById('pc');
-    var tba=document.getElementById('tb-actions');
     if(pc && tba) goPage(S.page);
-  }).catch(function(e){console.warn('Supabase:',e);});
+  }).catch(function(e){
+    console.warn('Supabase:',e);
+    // Mesmo com erro, renderizar com dados locais
+    if(pc && tba) goPage(S.page);
+  });
 }
 
 function alternarPerfil(){
@@ -3759,7 +3764,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 // Animação para toasts
 var style=document.createElement('style');
-style.textContent='@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}';
+style.textContent='@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}} @keyframes spin{to{transform:rotate(360deg)}}';
 document.head.appendChild(style);
 </script>
 </body>
