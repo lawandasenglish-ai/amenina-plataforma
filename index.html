@@ -447,6 +447,10 @@ var S={perfil:'gestao',userName:'Lawanda',userRole:'Diretoria',avatar:'LW',
 // ══════════════════════════════════════════════════════
 // SUPABASE CARREGAR / SALVAR
 // ══════════════════════════════════════════════════════
+function normalizarNome(s){
+  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+
 async function carregarDados(){
   if(!sb) return;
   try{
@@ -454,12 +458,14 @@ async function carregarDados(){
     var rTe=await sb.from('teachers').select('*');
     if(rTe.data&&rTe.data.length){
       rTe.data.forEach(function(dbT){
-        var local=TEACHERS.find(function(t){return t.nome.toLowerCase()===dbT.nome.toLowerCase();});
+        // Match ignorando acentos e maiúsculas (resolve Nínive vs Nivive vs NINIVE)
+        var local=TEACHERS.find(function(t){return normalizarNome(t.nome)===normalizarNome(dbT.nome);});
         if(local){ _teacherIdMap[local.id]=dbT.id; }
         // Também mapear pelo UUID do banco direto (para alunos que já têm UUID)
         _teacherIdMap[dbT.id]=dbT.id;
       });
       console.log('Teachers mapeadas:', _teacherIdMap);
+      console.log('Teachers do banco:', rTe.data.map(function(t){return t.nome;}));
     } else {
       (async function(){
         for(var i=0;i<TEACHERS.length;i++){ await salvarTeacherDB(TEACHERS[i]); }
