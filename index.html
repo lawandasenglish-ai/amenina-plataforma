@@ -2415,7 +2415,12 @@ function salvarEditAluna(){
   if(g('ea-cep')) al.cep=g('ea-cep').value;
   if(g('ea-valor')) al.valor=parseInt(g('ea-valor').value)||al.valor;
   if(g('ea-venc')) al.venc=parseInt(g('ea-venc').value)||al.venc;
-  if(g('ea-fin')) al.fin=g('ea-fin').value;
+  if(g('ea-fin')){
+    var finAnt=al.fin;
+    al.fin=g('ea-fin').value;
+    if(al.fin==='Pago'&&finAnt!=='Pago')registrarPagamento(al);
+    if(al.fin!=='Pago'&&finAnt==='Pago')estornarPagamentoHoje(al.id);
+  }
   salvarAlunaDB(al);
   closeModal();showToast('Dados atualizados! ✅');
   renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
@@ -3085,10 +3090,12 @@ function marcarPgto(btn){
     al.diasInadimplente=calcDiasAtraso(al.dataAtraso);
     // Volta valor ao cheio se tem desconto
     if(al.desconto>0){ al.valor=al.valorCheio; showToast('⚠️ Desconto removido — valor voltou para R$ '+al.valor); }
+    estornarPagamentoHoje(al.id);
   } else if(fin==='Pago'){
     al.dataAtraso=null; al.diasInadimplente=0;
     // Restaurar desconto se tinha
     if(al.desconto>0){ al.valor=Math.round(al.valorCheio*(1-al.desconto/100)); }
+    registrarPagamento(al);
   }
   salvarAlunaDB(al);
   showToast('Status atualizado!');
@@ -3888,6 +3895,10 @@ async function carregarModulosExtrasDB(){
     if(r4.data&&r4.data.length)RELATORIOS=r4.data.map(mapRelatorio);
     if(r4.error)console.warn('Tabela relatorios:',r4.error.message);
   }catch(e){console.warn('relatorios:',e);}
+  try{var r5=await sb.from('pagamentos').select('*');
+    if(r5.data&&r5.data.length)PAGAMENTOS=r5.data.map(function(p){return {id:p.id,alunoId:p.aluno_id||'',valor:parseFloat(p.valor||0),data:p.data||''};});
+    if(r5.error)console.warn('Tabela pagamentos:',r5.error.message);
+  }catch(e){console.warn('pagamentos:',e);}
 }
 function mapSuporte(r){
   return {id:r.id,alunoId:r.aluno_id||'',data:r.data||'',canal:r.canal||'WhatsApp',
@@ -4239,6 +4250,7 @@ renderDashboard=function(c,a){
 // RELATÓRIOS À DIRETORIA
 // ══════════════════════════════════════════════════════
 var RELATORIOS=[];
+var PAGAMENTOS=[];
 var TIPOS_REL=[['diario','📅 Diário'],['semanal','🗓 Semanal'],['mensal','📆 Mensal'],['trimestral','📊 Trimestral'],['semestral','📈 Semestral'],['anual','🏆 Anual']];
 var AREAS_REL={financeiro:'Financeiro',comercial:'Comercial',pedagogico:'Pedagógico'};
 
@@ -4280,6 +4292,28 @@ async function salvarRelatorioDB(t){
   }catch(e){console.warn('salvarRelatorioDB:',e);}
 }
 
+// ── Registro de pagamentos com data ──
+function registrarPagamento(al){
+  // Evita duplicar se já registrou pagamento dessa aluna hoje
+  if(PAGAMENTOS.some(function(p){return p.alunoId===al.id&&p.data===hojeISO();}))return;
+  var p={id:uuid(),alunoId:al.id,valor:parseFloat(al.valor||0),data:hojeISO()};
+  PAGAMENTOS.unshift(p);
+  if(sb){
+    sb.from('pagamentos').insert({id:p.id,aluno_id:p.alunoId,valor:p.valor,data:p.data})
+      .then(function(r){if(r.error)console.warn('Erro salvar pagamento:',r.error.message);});
+  }
+}
+function estornarPagamentoHoje(alunoId){
+  var idx=PAGAMENTOS.findIndex(function(p){return p.alunoId===alunoId&&p.data===hojeISO();});
+  if(idx<0)return;
+  var p=PAGAMENTOS[idx];
+  PAGAMENTOS.splice(idx,1);
+  if(sb){
+    sb.from('pagamentos').delete().eq('id',p.id)
+      .then(function(r){if(r.error)console.warn('Erro estornar pagamento:',r.error.message);});
+  }
+}
+
 // ── Resumo automático por área ──
 function resumoAutoRelatorio(area,tipo){
   var ini=inicioPeriodo(tipo);
@@ -4287,13 +4321,15 @@ function resumoAutoRelatorio(area,tipo){
   atualizarDiasInadimplente();
   if(area==='financeiro'){
     var pagantes=ALUNOS.filter(isPagante);
-    var recebido=pagantes.reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
+    var pgtos=PAGAMENTOS.filter(function(p){return (p.data||'')>=ini;});
+    var recebido=pgtos.reduce(function(s,p){return s+(p.valor||0);},0);
     var previsto=pagantes.filter(function(a){return a.status!=='Desaparecido';}).reduce(function(s,a){return s+a.valor;},0);
     var inad=pagantes.filter(function(a){return a.fin==='Atrasado';});
     var inadValor=inad.reduce(function(s,a){return s+a.valor;},0);
     var negat=inad.filter(function(a){return (a.diasInadimplente||0)>10;});
     var contatos=COBRANCA.filter(function(t){return (t.data||'')>=ini;});
-    linhas.push('💰 Recebido: R$ '+recebido.toLocaleString('pt-BR')+' de R$ '+previsto.toLocaleString('pt-BR')+' previstos');
+    linhas.push('💰 Recebido no período: R$ '+recebido.toLocaleString('pt-BR')+' ('+pgtos.length+' pagamento'+(pgtos.length===1?'':'s')+')');
+    linhas.push('📈 Previsto no mês (MRR): R$ '+previsto.toLocaleString('pt-BR'));
     linhas.push('⚠️ Inadimplentes: '+inad.length+' aluna'+(inad.length===1?'':'s')+' (R$ '+inadValor.toLocaleString('pt-BR')+')');
     linhas.push('🚫 Para negativar (10d+): '+negat.length);
     linhas.push('📞 Contatos de cobrança no período: '+contatos.length);
