@@ -501,6 +501,7 @@ async function carregarDados(){
     // Carregar despesas e livros
     await carregarDespesasDB();
     await carregarLivrosDB();
+    await carregarModulosExtrasDB();
   }catch(e){ console.warn('Supabase offline:',e); }
 }
 
@@ -898,8 +899,8 @@ var NAVS={
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {s:'Relatórios'},{id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
     {s:'Financeiro'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
-    {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;}},
-    {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
+    {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
+    {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {id:'planos',l:'Planos de Estudo',ic:'ti-notebook'},
     {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
@@ -932,8 +933,8 @@ var NAVS={
     {s:'Financeiro'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
     {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
-    {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;}},
-    {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;}).length;}},
+    {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
+    {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {s:'Alunos'},{id:'alunos',l:'Situação Financeira',ic:'ti-users'},
   ],
@@ -953,6 +954,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros'};
 
 function buildNav(){
+  document.body.classList.toggle('pf-gestao',S.perfil==='gestao');
   var items=NAVS[S.perfil]||[];
   var html='';
   items.forEach(function(item){
@@ -994,6 +996,7 @@ function goPage(id){
     notas:renderNotas,horarios:renderHorarios,
     relatorios:renderRelatorios,
     livros:renderLivros,
+    suporte:renderSuporte,cobranca:renderCobranca,experiencia:renderExperiencia,
   };
   (pages[id]||renderEmpty)(c,a);
 }
@@ -1133,7 +1136,7 @@ function renderFluxoCaixa(rc){
 
   var desp=DESPESAS.filter(function(d){return d.mes===mes&&d.ano===ano;});
   var totalDesp=desp.reduce(function(s,d){return s+d.valor;},0);
-  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo';}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo'&&isPagante(a);}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
   var saldo=mrr-totalDesp;
 
   // Custo previsão teachers este mês
@@ -1220,7 +1223,7 @@ function filtrarFluxo(){
   var rc=document.getElementById('rel-content');
   var desp=DESPESAS.filter(function(d){return d.mes===m&&d.ano===y;});
   var totalDesp=desp.reduce(function(s,d){return s+d.valor;},0);
-  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo';}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo'&&isPagante(a);}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
   // Re-render
   renderFluxoCaixa(rc);
 }
@@ -1289,11 +1292,11 @@ function renderRelFinanceiro(rc){
   var ano = hoje.getFullYear();
 
   // KPIs financeiros
-  var totalAtivos = ALUNOS.filter(function(a){return a.status==='Ativo';});
+  var totalAtivos = ALUNOS.filter(function(a){return a.status==='Ativo'&&isPagante(a);});
   var mrr = totalAtivos.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
-  var pagos = ALUNOS.filter(function(a){return a.fin==='Pago';});
+  var pagos = ALUNOS.filter(function(a){return a.fin==='Pago'&&isPagante(a);});
   var recebido = pagos.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
-  var inadimplentes = ALUNOS.filter(function(a){return a.fin==='Atrasado';});
+  var inadimplentes = ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);});
   var emAberto = inadimplentes.reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
   var ticketMedio = totalAtivos.length?Math.round(mrr/totalAtivos.length):0;
   var taxaInad = totalAtivos.length?Math.round(inadimplentes.length/totalAtivos.length*100):0;
@@ -1385,7 +1388,7 @@ function renderRelFinanceiro(rc){
     if(ctx4){
       var pg2=ALUNOS.filter(function(a){return a.fin==='Pago';}).length;
       var pe2=ALUNOS.filter(function(a){return a.fin==='Pendente';}).length;
-      var at2=ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;
+      var at2=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;
       _charts.status=new Chart(ctx4,{type:'pie',data:{
         labels:['Pago','Pendente','Atrasado'],
         datasets:[{data:[pg2,pe2,at2],backgroundColor:['#16a34a','#ca8a04','#dc2626']}]
@@ -1461,11 +1464,11 @@ function renderRelExecutivo(rc){
   var ativos=ALUNOS.filter(function(a){return a.status==='Ativo';}).length;
   var desap=ALUNOS.filter(function(a){return a.status==='Desaparecido';}).length;
   var atencao=ALUNOS.filter(function(a){return a.status==='Atenção';}).length;
-  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo';}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
+  var mrr=ALUNOS.filter(function(a){return a.status==='Ativo'&&isPagante(a);}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
   var convertidos=LEADS.filter(function(l){return l.etapa==='matriculado';}).length;
   var total=LEADS.length;
   var taxa=total?Math.round(convertidos/total*100):0;
-  var inadQtd=ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;
+  var inadQtd=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;
   var taxaInad=ativos?Math.round(inadQtd/ativos*100):0;
 
   rc.innerHTML=
@@ -1573,7 +1576,7 @@ function exportarExcel(){
     ['Total de alunos',ALUNOS.length],
     ['Alunos ativos',ativos.length],
     ['MRR (R$)',mrr.toFixed(2)],
-    ['Inadimplentes',ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length],
+    ['Inadimplentes',ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length],
     ['Total leads',LEADS.length],
     ['Leads convertidos',LEADS.filter(function(l){return l.etapa==='matriculado';}).length],
   ];
@@ -1600,6 +1603,7 @@ function renderEmpty(c){
 // ══════════════════════════════════════════════════════
 function inits(nome){return (nome||'').split(' ').slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase()||'?';}
 function byName(arr){return arr.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});}
+function isPagante(a){return a.plano!=='Publicidade';}
 function getTeacher(id){
   if(!id) return {nome:'—'};
   // Buscar por ID local (t0, t1...)
@@ -1679,7 +1683,7 @@ function renderPlanos(c,a){
         var prog=al.planoProgresso||[];
         var pct=Math.round(prog.length/30*100);
         return '<tr>'
-          +'<td class="nm">'+al.nome+'</td>'
+          +'<td class="nm" data-alid="'+al.id+'">'+al.nome+'</td>'
           +'<td>'+al.nivel+'</td>'
           +'<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;background:rgba(121,20,40,.1);border-radius:99px;height:6px;overflow:hidden"><div style="background:var(--cr);height:100%;border-radius:99px;width:'+pct+'%"></div></div><span style="font-size:11px;font-weight:700;color:var(--cr)">'+pct+'%</span></div></td>'
           +'<td>'+prog.length+'/30</td>'
@@ -1788,12 +1792,12 @@ function renderAlertasPresenca(){
   if(desap.length){
     html+='<div style="padding:8px 16px;font-size:12px;font-weight:700;color:#ef4444">🚨 Desaparecidos ('+desap.length+')</div>'
       +'<table class="tbl"><tr><th>Aluno</th><th>Faltas</th><th>Teacher</th></tr>'
-      +desap.map(function(al){return '<tr style="background:rgba(239,68,68,.05)"><td class="nm">'+al.nome+'</td><td>'+al.faltas+'</td><td>'+getTeacher(al.teacherId).nome+'</td></tr>';}).join('')+'</table>';
+      +desap.map(function(al){return '<tr style="background:rgba(239,68,68,.05)"><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.faltas+'</td><td>'+getTeacher(al.teacherId).nome+'</td></tr>';}).join('')+'</table>';
   }
   if(atencao.length){
     html+='<div style="padding:8px 16px;font-size:12px;font-weight:700;color:#f59e0b">⚠️ Merecem Atenção ('+atencao.length+')</div>'
       +'<table class="tbl"><tr><th>Aluno</th><th>Faltas</th><th>Teacher</th></tr>'
-      +atencao.map(function(al){return '<tr style="background:rgba(245,158,11,.05)"><td class="nm">'+al.nome+'</td><td>'+al.faltas+'</td><td>'+getTeacher(al.teacherId).nome+'</td></tr>';}).join('')+'</table>';
+      +atencao.map(function(al){return '<tr style="background:rgba(245,158,11,.05)"><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.faltas+'</td><td>'+getTeacher(al.teacherId).nome+'</td></tr>';}).join('')+'</table>';
   }
   return html+'</div>';
 }
@@ -1801,7 +1805,7 @@ function renderDashboard(c,a){
   var now=new Date();
   var welcome='<div style="margin-bottom:16px"><div style="font-size:13px;color:var(--crose)">Bem-vinda de volta,</div><div style="font-family:var(--font-serif);font-size:28px;color:var(--cd)">'+S.userName+'! 👋</div></div>';
   if(S.perfil==='gestao'){
-    var atrasadas=ALUNOS.filter(function(a){return a.fin==='Atrasado';});
+    var atrasadas=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);});
     var notasPend=NOTAS.filter(function(n){return !n.resolvido;});
     var urgAlta=notasPend.filter(function(n){return n.urgencia==='alta';});
     c.innerHTML=welcome
@@ -1813,7 +1817,7 @@ function renderDashboard(c,a){
       +'</div>'
       +(atrasadas.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>⚠️ Inadimplentes</h3></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th></tr>'
-        +atrasadas.slice(0,5).map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>'+al.plano+'</td><td>R$'+al.valor+'</td><td>Dia '+al.venc+'</td></tr>';}).join('')
+        +atrasadas.slice(0,5).map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.plano+'</td><td>R$'+al.valor+'</td><td>Dia '+al.venc+'</td></tr>';}).join('')
         +'</table></div>':'')
       +(notasPend.length?'<div class="card"><div class="ch"><i class="ti ti-notebook"></i><h3>📝 Notas pendentes</h3><button class="cha" onclick="goPage(\'notas\')">Ver todas →</button></div>'
         +notasPend.slice(0,3).map(function(n){
@@ -1837,17 +1841,17 @@ function renderDashboard(c,a){
       +'</div>'
       +(meus.length?'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Minhas alunas</h3></div>'
         +'<table class="tbl"><tr><th>Nome</th><th>Nível</th><th>Freq.</th><th>Financeiro</th></tr>'
-        +meus.map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>'+al.nivel+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td></tr>';}).join('')
+        +meus.map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td></tr>';}).join('')
         +'</table></div>':'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna vinculada ainda.</div>');
   } else if(S.perfil==='financeiro'){
     atualizarDiasInadimplente();
-    var totalPago=ALUNOS.reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
-    var totalPrev=ALUNOS.filter(function(a){return a.status!=='Desaparecido';}).reduce(function(s,a){return s+a.valor;},0);
-    var inad=ALUNOS.filter(function(a){return a.fin==='Atrasado';});
-    var negat=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&(a.diasInadimplente||0)>10;});
+    var totalPago=ALUNOS.filter(isPagante).reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
+    var totalPrev=ALUNOS.filter(function(a){return a.status!=='Desaparecido'&&isPagante(a);}).reduce(function(s,a){return s+a.valor;},0);
+    var inad=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);});
+    var negat=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;});
     // Mensalidades de hoje (vencimento = dia de hoje)
     var hoje=new Date().getDate();
-    var vencHoje=ALUNOS.filter(function(a){return a.venc===hoje&&a.fin!=='Pago'&&a.status!=='Desaparecido';})
+    var vencHoje=ALUNOS.filter(function(a){return isPagante(a)&&a.venc===hoje&&a.fin!=='Pago'&&a.status!=='Desaparecido';})
       .sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});
     c.innerHTML=welcome
       +'<div class="sg g4">'
@@ -1858,20 +1862,20 @@ function renderDashboard(c,a){
       +'</div>'
       +(vencHoje.length?'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>Vencimentos hoje — Dia '+hoje+'</h3></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Status</th><th></th></tr>'
-        +vencHoje.map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+bdg(al.fin)+'</td>'
+        +vencHoje.map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+bdg(al.fin)+'</td>'
           +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button></td></tr>';}).join('')
         +'</table></div>':'')
       +(inad.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>Inadimplentes</h3><button class="cha" onclick="goPage(\'inadimplencia\')">Ver todos →</button></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Dias</th></tr>'
         +inad.slice(0,5).sort(function(a,b){return (b.diasInadimplente||0)-(a.diasInadimplente||0);}
-        ).map(function(al){return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+(al.diasInadimplente||0)+'d</td></tr>';}).join('')
+        ).map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+(al.diasInadimplente||0)+'d</td></tr>';}).join('')
         +'</table></div>':'')
       +renderAlertasPresenca();
   } else {
     c.innerHTML=welcome
       +'<div class="sg g3">'
       +'<div class="sc"><div class="sl">Alunas</div><div class="sv">'+ALUNOS.length+'</div></div>'
-      +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length+'</div></div>'
+      +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length+'</div></div>'
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'</div>'
       +(S.perfil!=='comercial'?renderAlertasPresenca():'');
@@ -1896,7 +1900,7 @@ function renderUsuarios(c,a){
   var alHtml='<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Alunas ('+ALUNOS.length+')</h3></div>'
     +(ALUNOS.length?'<table class="tbl"><tr><th>Nome</th><th>Email</th><th>Teacher</th><th>Plano</th><th>Status fin.</th><th>Status</th><th></th></tr>'
       +byName(ALUNOS).map(function(al){
-        return '<tr><td class="nm">'+al.nome+'</td><td style="font-size:11px">'+al.email+'</td>'
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td style="font-size:11px">'+al.email+'</td>'
           +'<td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.plano+'</td>'
           +'<td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
           +'<td style="display:flex;gap:4px">'
@@ -2741,7 +2745,7 @@ function renderMatriculas(c,a){
   c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-file-plus"></i><h3>Matrículas</h3></div>'
     +(ALUNOS.length?'<table class="tbl"><tr><th>Aluna</th><th>Teacher</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Data</th><th></th></tr>'
       +byName(ALUNOS).map(function(al){
-        return '<tr><td class="nm">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.plano+'</td><td>R$'+al.valor+'</td><td>Dia '+al.venc+'</td><td>'+al.matricula+'</td>'
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.plano+'</td><td>R$'+al.valor+'</td><td>Dia '+al.venc+'</td><td>'+al.matricula+'</td>'
           +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma matrícula ainda.</div>')
@@ -2949,7 +2953,7 @@ async function salvarAula(){
 // ALUNOS
 // ══════════════════════════════════════════════════════
 function renderAlunos(c,a){
-  if(S.perfil==='gestao'||S.perfil==='financeiro') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
+  if(S.perfil==='gestao'||S.perfil==='financeiro'||S.perfil==='pedagogico') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
   var lista=myAlunos();
   c.innerHTML='<div class="sg g4">'
     +'<div class="sc"><div class="sl">Total</div><div class="sv">'+lista.length+'</div></div>'
@@ -2960,7 +2964,7 @@ function renderAlunos(c,a){
     +(lista.length?'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Lista de alunas</h3></div>'
       +'<table class="tbl"><tr><th>Nome</th><th>Nível</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th><th>Freq.</th><th>Financeiro</th><th>Status</th><th></th></tr>'
       +lista.map(function(al){
-        return '<tr><td class="nm">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
           +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
       }).join('')+'</table></div>'
       :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna cadastrada.</div>');
@@ -2972,7 +2976,7 @@ function renderFrequencia(c,a){
     +(lista.length?'<table class="tbl"><tr><th>Aluna</th><th>Teacher</th><th>Faltas</th><th>Frequência</th><th>Status</th></tr>'
       +lista.map(function(al){
         var freq=al.freq||100;
-        return '<tr><td class="nm">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.faltas+'</td>'
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.faltas+'</td>'
           +'<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:#eee;border-radius:3px"><div style="width:'+freq+'%;height:100%;background:'+(freq<70?'#c0392b':freq<85?'#f39c12':'#2d6a10')+';border-radius:3px"></div></div><span style="font-size:11px;font-weight:700">'+freq+'%</span></div></td>'
           +'<td>'+bdg(al.status)+'</td></tr>';
       }).join('')+'</table>'
@@ -2984,7 +2988,7 @@ function renderRetencao(c,a){
   c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-heart"></i><h3>Alunas em risco ('+emRisco.length+')</h3></div>'
     +(emRisco.length?'<table class="tbl"><tr><th>Aluna</th><th>Teacher</th><th>Freq.</th><th>Financeiro</th><th>Faltas</th></tr>'
       +emRisco.map(function(al){
-        return '<tr><td class="nm">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+al.faltas+'</td></tr>';
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+al.faltas+'</td></tr>';
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)">✅ Nenhuma aluna em risco!</div>')+'</div>';
 }
@@ -2998,6 +3002,7 @@ function renderPagamentos(soloInadimplentes){
   atualizarDiasInadimplente();
   // Filtrar: excluir desaparecidos e alunos com +15 dias atraso (só se não for aba inadimplência)
   var listaBase=ALUNOS.filter(function(a){
+    if(!isPagante(a)) return false;
     if(a.status==='Desaparecido') return false;
     if(!soloInadimplentes && a.fin==='Atrasado' && a.diasInadimplente>15) return false;
     return true;
@@ -3005,9 +3010,9 @@ function renderPagamentos(soloInadimplentes){
   var lista=soloInadimplentes
     ?listaBase.filter(function(a){return a.fin==='Atrasado';})
     :listaBase;
-  var total=ALUNOS.reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
-  var previsto=ALUNOS.filter(function(a){return a.status!=='Desaparecido';}).reduce(function(s,a){return s+a.valor;},0);
-  var inadimplentes=ALUNOS.filter(function(a){return a.fin==='Atrasado';}).length;
+  var total=ALUNOS.filter(isPagante).reduce(function(s,a){return s+(a.fin==='Pago'?a.valor:0);},0);
+  var previsto=ALUNOS.filter(function(a){return a.status!=='Desaparecido'&&isPagante(a);}).reduce(function(s,a){return s+a.valor;},0);
+  var inadimplentes=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;
   // Agrupar por vencimento
   var grupos=[5,10,15,20,30];
   var porVenc={};
@@ -3031,7 +3036,7 @@ function renderPagamentos(soloInadimplentes){
       var valorStr='R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'');
       var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
       tabelaHtml+='<tr>'
-        +'<td class="nm">'+al.nome+badge+diasBadge+'</td>'
+        +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+diasBadge+'</td>'
         +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>Dia '+al.venc+'</td><td>'+bdg(al.fin)+'</td>'
         +'<td style="display:flex;gap:4px">'
         +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
@@ -3085,11 +3090,11 @@ function atualizarDiasInadimplente(){
 function renderNF(c,a){
   c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-receipt-2"></i><h3>Notas Fiscais</h3></div>'
     +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Status NF</th><th>Arquivo</th><th></th></tr>'
-    +byName(ALUNOS).map(function(al){
+    +byName(ALUNOS.filter(isPagante)).map(function(al){
       var nfLink=al.nfUrl
         ?'<a href="'+al.nfUrl+'" target="_blank" class="btn btn-ghost btn-sm">📄 Ver NF</a>'
         :'<span style="font-size:11px;color:#aaa">Sem arquivo</span>';
-      return '<tr><td class="nm">'+al.nome+'</td><td>R$ '+al.valor+'</td>'
+      return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>R$ '+al.valor+'</td>'
         +'<td>'+bdg(al.nfEmitida?'NF Emitida':'Pendente')+'</td>'
         +'<td>'+nfLink+'</td>'
         +'<td style="display:flex;gap:4px;align-items:center">'
@@ -3100,7 +3105,7 @@ function renderNF(c,a){
 }
 function renderNegativacao(c,a){
   atualizarDiasInadimplente();
-  var lista=ALUNOS.filter(function(al){return al.fin==='Atrasado'&&(al.diasInadimplente||0)>10;})
+  var lista=ALUNOS.filter(function(al){return al.fin==='Atrasado'&&isPagante(al)&&(al.diasInadimplente||0)>10;})
     .sort(function(a,b){return (b.diasInadimplente||0)-(a.diasInadimplente||0);});
   c.innerHTML='<div class="card" style="border:2px solid #ef4444">'
     +'<div class="ch"><i class="ti ti-ban" style="color:#ef4444"></i><h3 style="color:#ef4444">Negativação ('+lista.length+')</h3></div>'
@@ -3108,7 +3113,7 @@ function renderNegativacao(c,a){
     +(lista.length?'<table class="tbl"><tr><th>Aluno</th><th>Valor</th><th>Vencimento</th><th>Dias em atraso</th><th>Status</th></tr>'
       +lista.map(function(al){
         return '<tr style="background:rgba(239,68,68,.05)">'
-          +'<td class="nm">'+al.nome+'<div style="font-size:11px;color:#aaa">'+al.email+'</div></td>'
+          +'<td class="nm" data-alid="'+al.id+'">'+al.nome+'<div style="font-size:11px;color:#aaa">'+al.email+'</div></td>'
           +'<td>R$ '+al.valor+'</td><td>Dia '+al.venc+'</td>'
           +'<td><span style="font-weight:700;color:#ef4444">'+al.diasInadimplente+' dias</span></td>'
           +'<td>'+bdg(al.fin)+'</td></tr>';
@@ -3787,6 +3792,423 @@ function renderAluFinanceiro(c){
     +'<div style="font-size:12px;color:var(--crose);padding:10px 0">Vencimento: dia '+al.venc+' de cada mês</div></div>';
 }
 </script>
+<script>
+// ══════════════════════════════════════════════════════
+// MÓDULOS: SUPORTE / COBRANÇA / EXPERIÊNCIA
+// ══════════════════════════════════════════════════════
+var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
+
+// ── Estilos (nomes clicáveis + módulos) ──
+(function(){
+  var st=document.createElement('style');
+  st.textContent='.pf-gestao td.nm[data-alid]{cursor:pointer}'
+    +'.pf-gestao td.nm[data-alid]:hover{text-decoration:underline;color:var(--cr)}'
+    +'.timeline-item{border-left:3px solid rgba(121,20,40,.15);padding:8px 12px;margin-left:6px;margin-bottom:8px}';
+  document.head.appendChild(st);
+})();
+
+// ── Nome de aluna clicável abre o perfil (só Diretoria) ──
+document.addEventListener('click',function(e){
+  if(S.perfil!=='gestao')return;
+  if(!e.target||!e.target.closest)return;
+  if(e.target.closest('button, a, input, select, label'))return;
+  var td=e.target.closest('td.nm[data-alid]');
+  if(!td)return;
+  var al=ALUNOS.find(function(x){return x.id===td.dataset.alid;});
+  if(al)openEditAluna(al.id);
+});
+
+// ── Navegação e títulos ──
+NAVS.gestao.push({s:'Suporte & Experiência'},
+  {id:'suporte',l:'Central de Suporte',ic:'ti-lifebuoy',n:function(){return SUPORTE.filter(function(t){return t.status!=='resolvido';}).length;}},
+  {id:'cobranca',l:'Contatos de Cobrança',ic:'ti-phone-call'},
+  {id:'experiencia',l:'Experiência das Alunas',ic:'ti-mood-smile'});
+NAVS.financeiro.push({s:'Cobrança & Suporte'},
+  {id:'cobranca',l:'Contatos de Cobrança',ic:'ti-phone-call'},
+  {id:'suporte',l:'Central de Suporte',ic:'ti-lifebuoy',n:function(){return SUPORTE.filter(function(t){return t.status!=='resolvido';}).length;}});
+NAVS.comercial.push({s:'Suporte'},
+  {id:'suporte',l:'Central de Suporte',ic:'ti-lifebuoy',n:function(){return SUPORTE.filter(function(t){return t.status!=='resolvido';}).length;}});
+NAVS.pedagogico.push({s:'Suporte & Experiência'},
+  {id:'suporte',l:'Central de Suporte',ic:'ti-lifebuoy',n:function(){return SUPORTE.filter(function(t){return t.status!=='resolvido';}).length;}},
+  {id:'experiencia',l:'Experiência das Alunas',ic:'ti-mood-smile'});
+TITLES.suporte='Central de Suporte';
+TITLES.cobranca='Contatos de Cobrança';
+TITLES.experiencia='Experiência das Alunas';
+
+// ── Helpers ──
+function getAluno(id){return ALUNOS.find(function(a){return a.id===id;})||{nome:'—'};}
+function alunaOpts(sel,lista){
+  return byName(lista||ALUNOS).map(function(a){
+    return '<option value="'+a.id+'"'+(a.id===sel?' selected':'')+'>'+a.nome+'</option>';
+  }).join('');
+}
+function hojeISO(){return new Date().toISOString().split('T')[0];}
+function diasDesde(iso){
+  if(!iso)return 0;
+  return Math.max(0,Math.floor((new Date()-new Date(iso))/(1000*60*60*24)));
+}
+
+// ── Supabase: carregar / salvar ──
+async function carregarModulosExtrasDB(){
+  if(!sb)return;
+  try{var r1=await sb.from('suporte').select('*');
+    if(r1.data&&r1.data.length)SUPORTE=r1.data.map(mapSuporte);
+    if(r1.error)console.warn('Tabela suporte:',r1.error.message);
+  }catch(e){console.warn('suporte:',e);}
+  try{var r2=await sb.from('cobranca').select('*');
+    if(r2.data&&r2.data.length)COBRANCA=r2.data.map(mapCobranca);
+    if(r2.error)console.warn('Tabela cobranca:',r2.error.message);
+  }catch(e){console.warn('cobranca:',e);}
+  try{var r3=await sb.from('experiencia').select('*');
+    if(r3.data&&r3.data.length)EXPERIENCIA=r3.data.map(mapExperiencia);
+    if(r3.error)console.warn('Tabela experiencia:',r3.error.message);
+  }catch(e){console.warn('experiencia:',e);}
+}
+function mapSuporte(r){
+  return {id:r.id,alunoId:r.aluno_id||'',data:r.data||'',canal:r.canal||'WhatsApp',
+    categoria:r.categoria||'Outro',descricao:r.descricao||'',responsavel:r.responsavel||'',
+    status:r.status||'aberto',resolucao:r.resolucao||'',dataResolucao:r.data_resolucao||null,
+    criadorNome:r.criador_nome||''};
+}
+function mapCobranca(r){
+  return {id:r.id,alunoId:r.aluno_id||'',data:r.data||'',canal:r.canal||'WhatsApp',
+    resumo:r.resumo||'',retorno:r.retorno||'Sem resposta',retornoDetalhe:r.retorno_detalhe||'',
+    proximaAcao:r.proxima_acao||'',proximaData:r.proxima_data||null,criadorNome:r.criador_nome||''};
+}
+function mapExperiencia(r){
+  return {id:r.id,alunoId:r.aluno_id||'',data:r.data||'',tipo:r.tipo||'checkin',
+    humor:r.humor||'',nota:(r.nota===0||r.nota)?r.nota:null,comentario:r.comentario||'',
+    criadorNome:r.criador_nome||''};
+}
+async function salvarSuporteDB(t){
+  if(!sb)return;
+  try{
+    var p={aluno_id:t.alunoId,data:t.data,canal:t.canal,categoria:t.categoria,
+      descricao:t.descricao,responsavel:t.responsavel,status:t.status,
+      resolucao:t.resolucao||'',data_resolucao:t.dataResolucao||null,criador_nome:t.criadorNome||''};
+    if(t.id&&String(t.id).length===36)p.id=t.id;
+    var r=await sb.from('suporte').upsert(p,{onConflict:'id'});
+    if(r.error)console.warn('Erro salvar suporte:',r.error.message);
+  }catch(e){console.warn('salvarSuporteDB:',e);}
+}
+async function salvarCobrancaDB(t){
+  if(!sb)return;
+  try{
+    var p={aluno_id:t.alunoId,data:t.data,canal:t.canal,resumo:t.resumo,
+      retorno:t.retorno,retorno_detalhe:t.retornoDetalhe||'',
+      proxima_acao:t.proximaAcao||'',proxima_data:t.proximaData||null,criador_nome:t.criadorNome||''};
+    if(t.id&&String(t.id).length===36)p.id=t.id;
+    var r=await sb.from('cobranca').upsert(p,{onConflict:'id'});
+    if(r.error)console.warn('Erro salvar cobranca:',r.error.message);
+  }catch(e){console.warn('salvarCobrancaDB:',e);}
+}
+async function salvarExperienciaDB(t){
+  if(!sb)return;
+  try{
+    var p={aluno_id:t.alunoId,data:t.data,tipo:t.tipo,humor:t.humor||'',
+      nota:(t.nota===0||t.nota)?t.nota:null,comentario:t.comentario||'',criador_nome:t.criadorNome||''};
+    if(t.id&&String(t.id).length===36)p.id=t.id;
+    var r=await sb.from('experiencia').upsert(p,{onConflict:'id'});
+    if(r.error)console.warn('Erro salvar experiencia:',r.error.message);
+  }catch(e){console.warn('salvarExperienciaDB:',e);}
+}
+
+// ══════════════════════════════════════════════════════
+// CENTRAL DE SUPORTE
+// ══════════════════════════════════════════════════════
+var _supFiltro='ativos';
+function renderSuporte(c,a){
+  a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(mNovoChamado())"><i class="ti ti-plus"></i> Novo chamado</button>';
+  var abertos=SUPORTE.filter(function(t){return t.status==='aberto';});
+  var andamento=SUPORTE.filter(function(t){return t.status==='andamento';});
+  var resolvidos=SUPORTE.filter(function(t){return t.status==='resolvido';});
+  var maisAntigo=abertos.concat(andamento).reduce(function(m,t){var d=diasDesde(t.data);return d>m?d:m;},0);
+  var lista=_supFiltro==='ativos'?SUPORTE.filter(function(t){return t.status!=='resolvido';})
+    :_supFiltro==='todos'?SUPORTE.slice()
+    :SUPORTE.filter(function(t){return t.status===_supFiltro;});
+  lista.sort(function(x,y){return (y.data||'').localeCompare(x.data||'');});
+  var catEmoji={'Financeiro':'💰','Técnico':'🔧','Reposição':'🔁','Reclamação':'⚠️','Horário':'🕐','Outro':'📌'};
+  c.innerHTML='<div class="sg g4">'
+    +'<div class="sc '+(abertos.length?'warn':'ok')+'"><div class="sl">Abertos</div><div class="sv">'+abertos.length+'</div></div>'
+    +'<div class="sc"><div class="sl">Em andamento</div><div class="sv">'+andamento.length+'</div></div>'
+    +'<div class="sc ok"><div class="sl">Resolvidos</div><div class="sv">'+resolvidos.length+'</div></div>'
+    +'<div class="sc '+(maisAntigo>2?'warn':'')+'"><div class="sl">Mais antigo sem resolver</div><div class="sv">'+maisAntigo+'d</div></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +[['ativos','Ativos'],['aberto','Abertos'],['andamento','Em andamento'],['resolvido','Resolvidos'],['todos','Todos']].map(function(f){
+      return '<button class="btn btn-sm '+(_supFiltro===f[0]?'btn-primary':'btn-ghost')+'" onclick="_supFiltro=\''+f[0]+'\';goPage(\'suporte\')">'+f[1]+'</button>';
+    }).join('')+'</div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-lifebuoy"></i><h3>Chamados ('+lista.length+')</h3></div>'
+    +(lista.length?'<table class="tbl"><tr><th>Aluna</th><th>Data</th><th>Assunto</th><th>Responsável</th><th>Status</th><th></th></tr>'
+      +lista.map(function(t){
+        var al=getAluno(t.alunoId);
+        var dias=diasDesde(t.data);
+        var stBdg=t.status==='resolvido'?'<span style="font-size:11px;background:#dcfce7;color:#166534;border-radius:6px;padding:2px 8px;font-weight:700">✅ Resolvido</span>'
+          :t.status==='andamento'?'<span style="font-size:11px;background:#fef9c3;color:#854d0e;border-radius:6px;padding:2px 8px;font-weight:700">🔄 Em andamento</span>'
+          :'<span style="font-size:11px;background:#fee2e2;color:#991b1b;border-radius:6px;padding:2px 8px;font-weight:700">🔴 Aberto'+(dias>0?' ('+dias+'d)':'')+'</span>';
+        return '<tr>'
+          +'<td class="nm" data-alid="'+al.id+'">'+al.nome+'</td>'
+          +'<td style="font-size:12px">'+fmtDateBr(t.data)+'</td>'
+          +'<td><div style="font-size:12px;font-weight:700">'+(catEmoji[t.categoria]||'📌')+' '+t.categoria+'</div>'
+          +'<div style="font-size:11px;color:var(--crose)">'+t.descricao+'</div>'
+          +(t.status==='resolvido'&&t.resolucao?'<div style="font-size:11px;color:#166534;margin-top:2px">✔ '+t.resolucao+'</div>':'')
+          +'</td>'
+          +'<td style="font-size:12px">'+(t.responsavel||'—')+'</td>'
+          +'<td>'+stBdg+'</td>'
+          +'<td style="display:flex;gap:4px">'
+          +(t.status==='aberto'?'<button class="btn btn-ghost btn-sm" onclick="mudarStatusChamado(\''+t.id+'\',\'andamento\')">🔄 Iniciar</button>':'')
+          +(t.status!=='resolvido'?'<button class="btn btn-ghost btn-sm" onclick="openModal(mResolverChamado(\''+t.id+'\'))">✅ Resolver</button>':'')
+          +'</td></tr>';
+      }).join('')+'</table>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhum chamado nesse filtro. 🎉</div>')+'</div>';
+}
+function mNovoChamado(){
+  return '<div class="mhdr"><h2>Novo chamado de suporte</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fgrid"><div class="fg"><label>Aluna</label><select id="su-aluna">'+alunaOpts()+'</select></div>'
+    +'<div class="fg"><label>Data</label><input type="date" id="su-data" value="'+hojeISO()+'"></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>Canal</label><select id="su-canal"><option>WhatsApp</option><option>Durante a aula</option><option>E-mail</option><option>Instagram</option><option>Outro</option></select></div>'
+    +'<div class="fg"><label>Assunto</label><select id="su-cat"><option>Financeiro</option><option>Técnico</option><option>Reposição</option><option>Reclamação</option><option>Horário</option><option>Outro</option></select></div></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Descrição do pedido</label><input id="su-desc" placeholder="O que a aluna pediu ou relatou?"></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Responsável</label><select id="su-resp">'
+    +EQUIPE.map(function(e){return '<option>'+e.nome+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarChamado()">Abrir chamado</button></div>';
+}
+function salvarChamado(){
+  var desc=(document.getElementById('su-desc').value||'').trim();
+  if(!desc){showToast('Descreva o pedido da aluna.');return;}
+  var t={id:uuid(),alunoId:document.getElementById('su-aluna').value,
+    data:document.getElementById('su-data').value||hojeISO(),
+    canal:document.getElementById('su-canal').value,categoria:document.getElementById('su-cat').value,
+    descricao:desc,responsavel:document.getElementById('su-resp').value,
+    status:'aberto',resolucao:'',dataResolucao:null,criadorNome:S.userName};
+  SUPORTE.unshift(t);salvarSuporteDB(t);closeModal();showToast('Chamado aberto! 🎫');
+  buildNav();goPage('suporte');
+}
+function mudarStatusChamado(id,status){
+  var t=SUPORTE.find(function(x){return x.id===id;});
+  if(!t)return;
+  t.status=status;salvarSuporteDB(t);buildNav();goPage('suporte');
+}
+function mResolverChamado(id){
+  var t=SUPORTE.find(function(x){return x.id===id;});
+  if(!t)return '';
+  var al=getAluno(t.alunoId);
+  return '<div class="mhdr"><h2>Resolver chamado — '+al.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="font-size:12px;color:var(--crose);margin-bottom:10px">'+t.categoria+': '+t.descricao+'</div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>O que foi feito para resolver?</label><input id="su-resol" placeholder="Ex: reposição agendada para dia 20"></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="confirmarResolucao(\''+id+'\')">Marcar como resolvido</button></div>';
+}
+function confirmarResolucao(id){
+  var t=SUPORTE.find(function(x){return x.id===id;});
+  if(!t)return;
+  t.status='resolvido';
+  t.resolucao=(document.getElementById('su-resol').value||'').trim();
+  t.dataResolucao=hojeISO();
+  salvarSuporteDB(t);closeModal();showToast('Chamado resolvido! ✅');
+  buildNav();goPage('suporte');
+}
+
+// ══════════════════════════════════════════════════════
+// CONTATOS DE COBRANÇA
+// ══════════════════════════════════════════════════════
+function renderCobranca(c,a){
+  a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(mNovoContatoCobranca())"><i class="ti ti-plus"></i> Novo contato</button>';
+  atualizarDiasInadimplente();
+  var mesAtual=hojeISO().slice(0,7);
+  var doMes=COBRANCA.filter(function(t){return (t.data||'').slice(0,7)===mesAtual;});
+  // Último contato por aluna
+  var porAluna={};
+  COBRANCA.slice().sort(function(x,y){return (x.data||'').localeCompare(y.data||'');}).forEach(function(t){
+    if(!porAluna[t.alunoId])porAluna[t.alunoId]=[];
+    porAluna[t.alunoId].push(t);
+  });
+  var semResposta=Object.keys(porAluna).filter(function(id){
+    var ult=porAluna[id][porAluna[id].length-1];
+    var al=getAluno(id);
+    return ult.retorno==='Sem resposta'&&al.fin==='Atrasado';
+  }).length;
+  var promessas=Object.keys(porAluna).filter(function(id){
+    var ult=porAluna[id][porAluna[id].length-1];
+    var al=getAluno(id);
+    return ult.retorno==='Prometeu pagar'&&al.fin==='Atrasado';
+  }).length;
+  var retEmoji={'Prometeu pagar':'🤝','Pediu parcelamento':'📆','Contestou':'⚖️','Sem resposta':'🔇','Pagou':'✅','Outro':'💬'};
+  var alunaIds=Object.keys(porAluna).sort(function(x,y){
+    var ux=porAluna[x][porAluna[x].length-1].data||'';
+    var uy=porAluna[y][porAluna[y].length-1].data||'';
+    return uy.localeCompare(ux);
+  });
+  c.innerHTML='<div class="sg g3">'
+    +'<div class="sc"><div class="sl">Contatos este mês</div><div class="sv">'+doMes.length+'</div></div>'
+    +'<div class="sc '+(semResposta?'warn':'ok')+'"><div class="sl">Inadimplentes sem resposta</div><div class="sv">'+semResposta+'</div></div>'
+    +'<div class="sc '+(promessas?'warn':'ok')+'"><div class="sl">Promessas em aberto</div><div class="sv">'+promessas+'</div></div>'
+    +'</div>'
+    +(alunaIds.length?alunaIds.map(function(id){
+      var al=getAluno(id);
+      var contatos=porAluna[id].slice().reverse();
+      var inadBdg=al.fin==='Atrasado'?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;margin-left:6px">'+(al.diasInadimplente||0)+'d em atraso · R$ '+al.valor+'</span>'
+        :al.fin==='Pago'?'<span style="font-size:10px;background:#dcfce7;color:#166534;border-radius:4px;padding:1px 6px;margin-left:6px">Pago ✅</span>':'';
+      return '<div class="card" style="margin-bottom:12px"><div class="ch"><i class="ti ti-user"></i>'
+        +'<h3><span class="nm" data-alid="'+al.id+'" style="cursor:pointer">'+al.nome+'</span>'+inadBdg+'</h3></div>'
+        +'<div style="padding:0 16px 12px">'
+        +contatos.map(function(t){
+          return '<div class="timeline-item">'
+            +'<div style="font-size:11px;color:var(--crose)">'+fmtDateBr(t.data)+' · '+t.canal+' · por '+(t.criadorNome||'—')+'</div>'
+            +'<div style="font-size:12px;color:var(--cd);margin-top:2px">'+t.resumo+'</div>'
+            +'<div style="font-size:12px;font-weight:700;margin-top:2px">'+(retEmoji[t.retorno]||'💬')+' Retorno: '+t.retorno+(t.retornoDetalhe?' — '+t.retornoDetalhe:'')+'</div>'
+            +(t.proximaAcao?'<div style="font-size:11px;color:var(--cr);margin-top:2px">➡ Próxima ação: '+t.proximaAcao+(t.proximaData?' ('+fmtDateBr(t.proximaData)+')':'')+'</div>':'')
+            +'</div>';
+        }).join('')+'</div></div>';
+    }).join('')
+    :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhum contato registrado ainda.</div>');
+}
+function mNovoContatoCobranca(){
+  atualizarDiasInadimplente();
+  var inad=ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);});
+  var lista=inad.length?inad:ALUNOS.filter(isPagante);
+  return '<div class="mhdr"><h2>Registrar contato de cobrança</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fgrid"><div class="fg"><label>Aluna'+(inad.length?' (inadimplentes)':'')+'</label><select id="co-aluna">'+alunaOpts(null,lista)+'</select></div>'
+    +'<div class="fg"><label>Data</label><input type="date" id="co-data" value="'+hojeISO()+'"></div></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Canal</label><select id="co-canal"><option>WhatsApp</option><option>Ligação</option><option>E-mail</option><option>Instagram</option><option>Outro</option></select></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>O que foi dito no contato?</label><input id="co-resumo" placeholder="Ex: lembrete da mensalidade vencida dia 10"></div>'
+    +'<div class="fgrid"><div class="fg"><label>Retorno da aluna</label><select id="co-retorno"><option>Sem resposta</option><option>Prometeu pagar</option><option>Pediu parcelamento</option><option>Contestou</option><option>Pagou</option><option>Outro</option></select></div>'
+    +'<div class="fg"><label>Detalhe do retorno</label><input id="co-detalhe" placeholder="Ex: disse que paga dia 20"></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>Próxima ação</label><input id="co-acao" placeholder="Ex: recontatar se não pagar"></div>'
+    +'<div class="fg"><label>Data da próxima ação</label><input type="date" id="co-proxdata"></div></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarContatoCobranca()">Salvar contato</button></div>';
+}
+function salvarContatoCobranca(){
+  var resumo=(document.getElementById('co-resumo').value||'').trim();
+  if(!resumo){showToast('Descreva o que foi dito no contato.');return;}
+  var t={id:uuid(),alunoId:document.getElementById('co-aluna').value,
+    data:document.getElementById('co-data').value||hojeISO(),
+    canal:document.getElementById('co-canal').value,resumo:resumo,
+    retorno:document.getElementById('co-retorno').value,
+    retornoDetalhe:(document.getElementById('co-detalhe').value||'').trim(),
+    proximaAcao:(document.getElementById('co-acao').value||'').trim(),
+    proximaData:document.getElementById('co-proxdata').value||null,
+    criadorNome:S.userName};
+  COBRANCA.unshift(t);salvarCobrancaDB(t);closeModal();showToast('Contato registrado! 📞');
+  goPage('cobranca');
+}
+
+// ══════════════════════════════════════════════════════
+// EXPERIÊNCIA DAS ALUNAS
+// ══════════════════════════════════════════════════════
+var HUMORES=[['engajada','😍 Engajada'],['ok','🙂 Bem'],['neutra','😐 Neutra'],['desanimada','😟 Desanimada']];
+function humorLbl(h){var f=HUMORES.find(function(x){return x[0]===h;});return f?f[1]:'—';}
+function ultimoRegistro(alunoId,tipo){
+  return EXPERIENCIA.filter(function(e){return e.alunoId===alunoId&&e.tipo===tipo;})
+    .sort(function(x,y){return (y.data||'').localeCompare(x.data||'');})[0]||null;
+}
+function renderExperiencia(c,a){
+  a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(mNovoCheckin())"><i class="ti ti-mood-smile"></i> Check-in</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="openModal(mNovoNPS())"><i class="ti ti-star"></i> Registrar NPS</button>';
+  var ativas=ALUNOS.filter(function(al){return al.status==='Ativo';});
+  // NPS últimos 90 dias
+  var corte=new Date(Date.now()-90*24*60*60*1000).toISOString().split('T')[0];
+  var notas=EXPERIENCIA.filter(function(e){return e.tipo==='nps'&&(e.nota===0||e.nota)&&(e.data||'')>=corte;});
+  var prom=notas.filter(function(e){return e.nota>=9;}).length;
+  var detr=notas.filter(function(e){return e.nota<=6;}).length;
+  var nps=notas.length?Math.round((prom-detr)/notas.length*100):null;
+  var desanimadas=ativas.filter(function(al){var u=ultimoRegistro(al.id,'checkin');return u&&u.humor==='desanimada';});
+  var semRegistro=ativas.filter(function(al){var u=ultimoRegistro(al.id,'checkin');return !u||diasDesde(u.data)>30;});
+  c.innerHTML='<div class="sg g4">'
+    +'<div class="sc '+(nps===null?'':(nps>=50?'ok':nps>=0?'':'warn'))+'"><div class="sl">NPS (90 dias)</div><div class="sv">'+(nps===null?'—':nps)+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+notas.length+' resposta'+(notas.length===1?'':'s')+'</div></div>'
+    +'<div class="sc '+(desanimadas.length?'warn':'ok')+'"><div class="sl">Desanimadas</div><div class="sv">'+desanimadas.length+'</div></div>'
+    +'<div class="sc '+(semRegistro.length>ativas.length/2?'warn':'')+'"><div class="sl">Sem check-in há 30d+</div><div class="sv">'+semRegistro.length+'</div></div>'
+    +'<div class="sc"><div class="sl">Registros totais</div><div class="sv">'+EXPERIENCIA.length+'</div></div>'
+    +'</div>'
+    +(desanimadas.length?'<div class="card warn" style="margin-bottom:12px"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>⚠️ Alunas desanimadas — agir agora</h3></div>'
+      +'<table class="tbl"><tr><th>Aluna</th><th>Último check-in</th><th>Comentário</th></tr>'
+      +desanimadas.map(function(al){var u=ultimoRegistro(al.id,'checkin');
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td style="font-size:12px">'+fmtDateBr(u.data)+'</td><td style="font-size:12px">'+(u.comentario||'—')+'</td></tr>';
+      }).join('')+'</table></div>':'')
+    +'<div class="card"><div class="ch"><i class="ti ti-mood-smile"></i><h3>Termômetro por aluna</h3></div>'
+    +'<table class="tbl"><tr><th>Aluna</th><th>Último check-in</th><th>Humor</th><th>NPS</th><th>Comentário</th></tr>'
+    +byName(ativas).map(function(al){
+      var uc=ultimoRegistro(al.id,'checkin');
+      var un=ultimoRegistro(al.id,'nps');
+      var alerta=!uc||diasDesde(uc.data)>30;
+      return '<tr'+(uc&&uc.humor==='desanimada'?' style="background:rgba(239,68,68,.05)"':'')+'>'
+        +'<td class="nm" data-alid="'+al.id+'">'+al.nome+'</td>'
+        +'<td style="font-size:12px">'+(uc?fmtDateBr(uc.data):'—')+(alerta?' <span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px">30d+</span>':'')+'</td>'
+        +'<td style="font-size:13px">'+(uc?humorLbl(uc.humor):'—')+'</td>'
+        +'<td style="font-size:12px;font-weight:700">'+(un&&(un.nota===0||un.nota)?un.nota+'/10':'—')+'</td>'
+        +'<td style="font-size:11px;color:var(--crose)">'+((uc&&uc.comentario)||(un&&un.comentario)||'—')+'</td></tr>';
+    }).join('')+'</table></div>';
+}
+function mNovoCheckin(){
+  return '<div class="mhdr"><h2>Check-in de experiência</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fgrid"><div class="fg"><label>Aluna</label><select id="ex-aluna">'+alunaOpts()+'</select></div>'
+    +'<div class="fg"><label>Data</label><input type="date" id="ex-data" value="'+hojeISO()+'"></div></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Como ela está?</label><select id="ex-humor">'
+    +HUMORES.map(function(h){return '<option value="'+h[0]+'">'+h[1]+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Comentário (opcional)</label><input id="ex-coment" placeholder="Ex: animada com a viagem, pediu mais speaking"></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarCheckin()">Salvar</button></div>';
+}
+function salvarCheckin(){
+  var t={id:uuid(),alunoId:document.getElementById('ex-aluna').value,
+    data:document.getElementById('ex-data').value||hojeISO(),tipo:'checkin',
+    humor:document.getElementById('ex-humor').value,nota:null,
+    comentario:(document.getElementById('ex-coment').value||'').trim(),criadorNome:S.userName};
+  EXPERIENCIA.unshift(t);salvarExperienciaDB(t);closeModal();showToast('Check-in salvo! 💚');
+  goPage('experiencia');
+}
+function mNovoNPS(){
+  return '<div class="mhdr"><h2>Registrar resposta de NPS</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="font-size:12px;color:var(--crose);margin-bottom:10px">"De 0 a 10, o quanto você indicaria a escola para uma amiga?"</div>'
+    +'<div class="fgrid"><div class="fg"><label>Aluna</label><select id="ex-aluna">'+alunaOpts()+'</select></div>'
+    +'<div class="fg"><label>Data</label><input type="date" id="ex-data" value="'+hojeISO()+'"></div></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Nota (0 a 10)</label><select id="ex-nota">'
+    +[10,9,8,7,6,5,4,3,2,1,0].map(function(n){return '<option value="'+n+'">'+n+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Comentário (opcional)</label><input id="ex-coment" placeholder="O que ela disse?"></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarNPS()">Salvar</button></div>';
+}
+function salvarNPS(){
+  var t={id:uuid(),alunoId:document.getElementById('ex-aluna').value,
+    data:document.getElementById('ex-data').value||hojeISO(),tipo:'nps',humor:'',
+    nota:parseInt(document.getElementById('ex-nota').value),
+    comentario:(document.getElementById('ex-coment').value||'').trim(),criadorNome:S.userName};
+  EXPERIENCIA.unshift(t);salvarExperienciaDB(t);closeModal();showToast('NPS registrado! ⭐');
+  goPage('experiencia');
+}
+
+// ══════════════════════════════════════════════════════
+// PAINEL DA DIRETORA no Dashboard (gestão)
+// ══════════════════════════════════════════════════════
+var _origRenderDashboard=renderDashboard;
+renderDashboard=function(c,a){
+  _origRenderDashboard(c,a);
+  if(S.perfil!=='gestao')return;
+  var chamadosAtivos=SUPORTE.filter(function(t){return t.status!=='resolvido';});
+  var maisAntigo=chamadosAtivos.reduce(function(m,t){var d=diasDesde(t.data);return d>m?d:m;},0);
+  var porAluna={};
+  COBRANCA.slice().sort(function(x,y){return (x.data||'').localeCompare(y.data||'');}).forEach(function(t){porAluna[t.alunoId]=t;});
+  var semResposta=Object.keys(porAluna).filter(function(id){
+    return porAluna[id].retorno==='Sem resposta'&&getAluno(id).fin==='Atrasado';
+  }).length;
+  var desanimadas=ALUNOS.filter(function(al){
+    if(al.status!=='Ativo')return false;
+    var u=ultimoRegistro(al.id,'checkin');
+    return u&&u.humor==='desanimada';
+  }).length;
+  c.insertAdjacentHTML('beforeend',
+    '<div class="card" style="margin-top:16px"><div class="ch"><i class="ti ti-eye"></i><h3>👁 Painel da Diretora — Suporte & Experiência</h3></div>'
+    +'<div class="sg g3" style="padding:0 16px 16px">'
+    +'<div class="sc '+(chamadosAtivos.length?'warn':'ok')+'" style="cursor:pointer" onclick="goPage(\'suporte\')"><div class="sl">Chamados sem resolver</div><div class="sv">'+chamadosAtivos.length+'</div>'+(maisAntigo?'<div style="font-size:11px;color:#991b1b;margin-top:2px">mais antigo: '+maisAntigo+'d</div>':'')+'</div>'
+    +'<div class="sc '+(semResposta?'warn':'ok')+'" style="cursor:pointer" onclick="goPage(\'cobranca\')"><div class="sl">Cobranças sem resposta</div><div class="sv">'+semResposta+'</div></div>'
+    +'<div class="sc '+(desanimadas?'warn':'ok')+'" style="cursor:pointer" onclick="goPage(\'experiencia\')"><div class="sl">Alunas desanimadas</div><div class="sv">'+desanimadas+'</div></div>'
+    +'</div></div>');
+};
+</script>
+
 <script>
 // ══════════════════════════════════════════════════════
 // INIT
