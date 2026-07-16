@@ -502,6 +502,7 @@ async function carregarDados(){
     await carregarDespesasDB();
     await carregarLivrosDB();
     await carregarModulosExtrasDB();
+    virarMesFinanceiro();
   }catch(e){ console.warn('Supabase offline:',e); }
 }
 
@@ -519,7 +520,7 @@ function mapAluno(r){
   return {id:r.id,nome:r.nome,email:r.email||'',ddi:r.ddi||'+55',tel:r.telefone||'',
     senha:'Aluno2026',nivel:r.nivel||'A1',teacherId:localTeacherId||null,
     aulasSemana:1,plano:r.plano||'Mensal',valor:r.valor||320,
-    venc:r.vencimento||10,fin:r.financeiro||'Pendente',status:r.status||'Ativo',
+    venc:r.vencimento||10,fin:r.financeiro||'Pendente',finCiclo:r.fin_ciclo||'',status:r.status||'Ativo',
     faltas:r.faltas||0,freq:r.frequencia||100,risco:r.risco||'low',
     matricula:r.matricula||'',fichaUrl:null,
     nfEmitida:r.nf_emitida||false,tipo:r.tipo||'individual',
@@ -573,6 +574,7 @@ async function salvarAlunaDB(al){
       valor:parseFloat(al.valor)||320,
       vencimento:parseInt(al.venc)||10,
       financeiro:al.fin||'Pendente',
+      fin_ciclo:al.finCiclo||null,
       status:al.status||'Ativo',
       faltas:parseInt(al.faltas)||0,
       frequencia:parseInt(al.freq)||100,
@@ -4294,6 +4296,7 @@ async function salvarRelatorioDB(t){
 
 // ── Registro de pagamentos com data ──
 function registrarPagamento(al){
+  al.finCiclo=hojeISO().slice(0,7); // carimba o mês do pagamento
   // Evita duplicar se já registrou pagamento dessa aluna hoje
   if(PAGAMENTOS.some(function(p){return p.alunoId===al.id&&p.data===hojeISO();}))return;
   var p={id:uuid(),alunoId:al.id,valor:parseFloat(al.valor||0),data:hojeISO()};
@@ -4311,6 +4314,32 @@ function estornarPagamentoHoje(alunoId){
   if(sb){
     sb.from('pagamentos').delete().eq('id',p.id)
       .then(function(r){if(r.error)console.warn('Erro estornar pagamento:',r.error.message);});
+  }
+}
+
+// ── Virada de mês financeira ──
+// Um "Pago" só vale para o mês em que foi marcado (fin_ciclo).
+// Ao abrir a plataforma em um mês novo, quem estava Pago volta para Pendente.
+function virarMesFinanceiro(){
+  var mes=hojeISO().slice(0,7);
+  var mudou=0;
+  ALUNOS.forEach(function(al){
+    if(al.fin!=='Pago')return;
+    var ciclo=al.finCiclo||'';
+    if(ciclo===mes)return; // pago neste mês, mantém
+    if(!ciclo){
+      // Legado (antes desta atualização): se há pagamento registrado neste mês, mantém
+      var pagouEsteMes=PAGAMENTOS.some(function(p){return p.alunoId===al.id&&(p.data||'').slice(0,7)===mes;});
+      if(pagouEsteMes){al.finCiclo=mes;salvarAlunaDB(al);return;}
+    }
+    al.fin='Pendente';
+    al.finCiclo='';
+    salvarAlunaDB(al);
+    mudou++;
+  });
+  if(mudou>0){
+    console.log('Virada de mês: '+mudou+' alunas voltaram para Pendente.');
+    setTimeout(function(){showToast('🗓 Novo mês: '+mudou+' aluna'+(mudou===1?'':'s')+' voltaram para Pendente no financeiro.');},1200);
   }
 }
 
