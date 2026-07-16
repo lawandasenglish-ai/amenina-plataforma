@@ -522,7 +522,7 @@ function mapAluno(r){
     aulasSemana:1,plano:r.plano||'Mensal',valor:r.valor||320,
     venc:r.vencimento||10,fin:r.financeiro||'Pendente',finCiclo:r.fin_ciclo||'',status:r.status||'Ativo',
     faltas:r.faltas||0,freq:r.frequencia||100,risco:r.risco||'low',
-    matricula:r.matricula||'',fichaUrl:null,
+    matricula:r.matricula||'',fichaUrl:r.ficha_url||null,
     nfEmitida:r.nf_emitida||false,tipo:r.tipo||'individual',
     desconto:r.desconto||0,valorCheio:r.valor_cheio||r.valor||0,
     endereco:r.endereco||'',cidade:r.cidade||'',estado:r.estado||'',pais:r.pais||'Brasil',cep:r.cep||'',
@@ -584,13 +584,13 @@ async function salvarAlunaDB(al){
       desconto:parseFloat(al.desconto)||0,
       valor_cheio:parseFloat(al.valorCheio)||parseFloat(al.valor)||0,
       endereco:al.endereco||null,cidade:al.cidade||null,estado:al.estado||null,pais:al.pais||'Brasil',cep:al.cep||null,
-      dias_inadimplente:al.diasInadimplente||0,data_atraso:al.dataAtraso||null,nf_url:al.nfUrl||null,
+      dias_inadimplente:al.diasInadimplente||0,data_atraso:al.dataAtraso||null,nf_url:al.nfUrl||null,ficha_url:al.fichaUrl||null,
       plano_html:al.planoHtml||null,plano_progresso:JSON.stringify(al.planoProgresso||[]),
     };
     // Se tem ID local (nao uuid), buscar pelo nome no banco
     if(al.id && al.id.length===36) payload.id=al.id;
     var r=await sb.from('alunos').upsert(payload,{onConflict:'id'});
-    if(r.error){ console.warn('Erro salvar aluna:', r.error.message); return null; }
+    if(r.error){ console.warn('Erro salvar aluna:', r.error.message); showToast('⚠️ NÃO SALVOU no banco: '+r.error.message); return null; }
     console.log('Aluna salva OK:', al.nome);
     // Se nao tinha ID, buscar o gerado pelo banco
     if(!payload.id){
@@ -598,7 +598,7 @@ async function salvarAlunaDB(al){
       if(found.data){ al.id=found.data.id; console.log('ID gerado:', al.id); }
     }
     return al.id;
-  }catch(e){ console.warn('Erro salvar aluna:',e); return null; }
+  }catch(e){ console.warn('Erro salvar aluna:',e); showToast('⚠️ NÃO SALVOU no banco: '+(e&&e.message?e.message:e)); return null; }
 }
 
 // Resolve ID de teacher: converte id local (t0,t1) para UUID do banco
@@ -1706,6 +1706,100 @@ function renderPlanos(c,a){
       :'')
     +'</div>';
 }
+function switchEditTab(tab){
+  var tabs=document.getElementById('edit-tabs');
+  if(!tabs)return;
+  ['dados','ficha','plano'].forEach(function(t){
+    var p=document.getElementById('epanel-'+t);
+    if(p)p.style.display=(t===tab)?'':'none';
+  });
+  tabs.querySelectorAll('[data-tab]').forEach(function(t){
+    t.style.borderBottomColor=t.dataset.tab===tab?'var(--cr)':'transparent';
+    t.style.color=t.dataset.tab===tab?'var(--cr)':'var(--crose)';
+  });
+}
+function uploadFichaEdit(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  if(!f)return;
+  if(f.type!=='application/pdf'){showToast('Apenas PDFs!');return;}
+  if(f.size>4*1024*1024){showToast('⚠️ PDF muito grande (máx. 4 MB). Comprima o arquivo e tente de novo.');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
+    if(!a)return;
+    a.fichaUrl=e.target.result;
+    salvarAlunaDB(a);
+    showToast('Ficha anexada! 📎');
+    openEditAluna(window._editingAlunaId);
+    setTimeout(function(){switchEditTab('ficha');},60);
+  };
+  reader.readAsDataURL(f);
+}
+function removerFichaEdit(){
+  var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
+  if(!a)return;
+  a.fichaUrl=null;salvarAlunaDB(a);showToast('Ficha removida.');
+  openEditAluna(window._editingAlunaId);
+  setTimeout(function(){switchEditTab('ficha');},60);
+}
+function uploadPlanoEdit(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  if(!f)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
+    if(!a)return;
+    a.planoHtml=e.target.result;
+    a.planoProgresso=[];
+    salvarAlunaDB(a);
+    showToast('Plano de estudos carregado! 📚');
+    openEditAluna(window._editingAlunaId);
+    setTimeout(function(){switchEditTab('plano');},60);
+  };
+  reader.readAsText(f,'UTF-8');
+}
+function removerPlanoEdit(){
+  var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
+  if(!a)return;
+  a.planoHtml=null;a.planoProgresso=[];salvarAlunaDB(a);showToast('Plano removido.');
+  openEditAluna(window._editingAlunaId);
+  setTimeout(function(){switchEditTab('plano');},60);
+}
+function uploadPlanoAlunaFile(ev,alunaId){
+  var f=ev.target.files&&ev.target.files[0];
+  if(!f)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var a=ALUNOS.find(function(x){return x.id===alunaId;});
+    if(!a)return;
+    a.planoHtml=e.target.result;
+    a.planoProgresso=[];
+    salvarAlunaDB(a);
+    showToast('Plano carregado para '+a.nome+'! 📚');
+    closeModal();
+    renderPlanos(document.getElementById('pc'),document.getElementById('tb-actions'));
+  };
+  reader.readAsText(f,'UTF-8');
+}
+function uploadPlanoGlobalFile(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  if(!f)return;
+  var sel=document.getElementById('sel-aluna-plano');
+  var alunaId=sel?sel.value:null;
+  if(!alunaId){showToast('Selecione a aluna primeiro.');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var a=ALUNOS.find(function(x){return x.id===alunaId;});
+    if(!a)return;
+    a.planoHtml=e.target.result;
+    a.planoProgresso=[];
+    salvarAlunaDB(a);
+    showToast('Plano carregado para '+a.nome+'! 📚');
+    closeModal();
+    renderPlanos(document.getElementById('pc'),document.getElementById('tb-actions'));
+  };
+  reader.readAsText(f,'UTF-8');
+}
 function openUploadPlanoAluna(alunaId){
   var al=ALUNOS.find(function(a){return a.id===alunaId;});
   if(!al) return;
@@ -1718,33 +1812,9 @@ function openUploadPlanoAluna(alunaId){
       :'<i class="ti ti-notebook" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhum plano</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Selecione o HTML do plano de estudos</div>')
-    +'<input type="file" id="plano-global-file" accept=".html" style="display:none">'
-    +'<button class="btn btn-primary" id="btn-up-plano-global"><i class="ti ti-upload"></i> Selecionar plano HTML</button>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> Selecionar plano HTML<input type="file" accept=".html,text/html" style="display:none" onchange="uploadPlanoAlunaFile(event,\''+alunaId+'\')"></label>'
     +'</div>';
   openModal(html);
-  setTimeout(function(){
-    var btn=document.getElementById('btn-up-plano-global');
-    var inp=document.getElementById('plano-global-file');
-    if(btn&&inp){
-      btn.addEventListener('click',function(){inp.click();});
-      inp.addEventListener('change',function(){
-        if(!this.files||!this.files[0]) return;
-        var reader=new FileReader();
-        reader.onload=function(e){
-          var a=ALUNOS.find(function(x){return x.id===alunaId;});
-          if(a){
-            a.planoHtml=e.target.result;
-            a.planoProgresso=[];
-            salvarAlunaDB(a);
-            showToast('Plano carregado para '+a.nome+'! 📚');
-            closeModal();
-            renderPlanos(document.getElementById('pc'),document.getElementById('tb-actions'));
-          }
-        };
-        reader.readAsText(this.files[0],'UTF-8');
-      });
-    }
-  },0);
 }
 function openUploadPlanoGlobal(){
   // Escolher aluna primeiro
@@ -1753,34 +1823,9 @@ function openUploadPlanoGlobal(){
   var html='<div class="mhdr"><h2>Carregar plano de estudos</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div style="padding:20px"><div class="fg"><label>Selecione a aluna</label><select id="sel-aluna-plano">'+opts+'</select></div>'
     +'<div style="margin-top:14px">'
-    +'<input type="file" id="plano-global-file2" accept=".html" style="display:none">'
-    +'<button class="btn btn-primary" id="btn-sel-plano"><i class="ti ti-upload"></i> Selecionar arquivo HTML</button>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> Selecionar arquivo HTML<input type="file" accept=".html,text/html" style="display:none" onchange="uploadPlanoGlobalFile(event)"></label>'
     +'</div></div>';
   openModal(html);
-  setTimeout(function(){
-    var btn=document.getElementById('btn-sel-plano');
-    var inp=document.getElementById('plano-global-file2');
-    if(btn&&inp){
-      btn.addEventListener('click',function(){inp.click();});
-      inp.addEventListener('change',function(){
-        if(!this.files||!this.files[0]) return;
-        var alunaId=document.getElementById('sel-aluna-plano').value;
-        var reader=new FileReader();
-        reader.onload=function(e){
-          var a=ALUNOS.find(function(x){return x.id===alunaId;});
-          if(a){
-            a.planoHtml=e.target.result;
-            a.planoProgresso=[];
-            salvarAlunaDB(a);
-            showToast('Plano carregado para '+a.nome+'! 📚');
-            closeModal();
-            renderPlanos(document.getElementById('pc'),document.getElementById('tb-actions'));
-          }
-        };
-        reader.readAsText(this.files[0],'UTF-8');
-      });
-    }
-  },0);
 }
 function removerPlanoAluna(alunaId){
   if(!confirm('Remover o plano desta aluna? O progresso também será apagado.')) return;
@@ -2256,9 +2301,9 @@ function openEditAluna(id){
   var temFicha=!!al.fichaUrl;
   var html='<div class="mhdr"><h2>Editar — '+al.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div id="edit-tabs" style="display:flex;border-bottom:2px solid rgba(121,20,40,.1);margin-bottom:16px">'
-    +'<div data-tab="dados" style="padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid var(--cr);color:var(--cr);margin-bottom:-2px">📋 Dados</div>'
-    +'<div data-tab="ficha" style="padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;color:var(--crose);margin-bottom:-2px">📎 Ficha PDF'+(temFicha?' ✅':'')+'</div>'
-    +'<div data-tab="plano" style="padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;color:var(--crose);margin-bottom:-2px">📚 Plano de Estudos'+(al.planoHtml?' ✅':'')+'</div>'
+    +'<div data-tab="dados" onclick="switchEditTab(\'dados\')" style="padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid var(--cr);color:var(--cr);margin-bottom:-2px">📋 Dados</div>'
+    +'<div data-tab="ficha" onclick="switchEditTab(\'ficha\')" style="padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;color:var(--crose);margin-bottom:-2px">📎 Ficha PDF'+(temFicha?' ✅':'')+'</div>'
+    +'<div data-tab="plano" onclick="switchEditTab(\'plano\')" style="padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;color:var(--crose);margin-bottom:-2px">📚 Plano de Estudos'+(al.planoHtml?' ✅':'')+'</div>'
     +'</div>'
     +'<div id="epanel-dados">'
     +'<div class="fst">Dados pessoais</div>'
@@ -2308,12 +2353,11 @@ function openEditAluna(id){
        +'<div style="font-size:14px;font-weight:700;color:var(--cd);margin-bottom:14px">Ficha anexada ✅</div>'
        +'<div style="display:flex;gap:10px;justify-content:center">'
        +'<a href="'+al.fichaUrl+'" target="_blank" class="btn btn-primary"><i class="ti ti-eye"></i> Ver PDF</a>'
-       +'<button class="btn btn-ghost" id="btn-rem-ficha"><i class="ti ti-trash"></i> Remover</button></div><br>'
+       +'<button class="btn btn-ghost" onclick="removerFichaEdit()"><i class="ti ti-trash"></i> Remover</button></div><br>'
       :'<i class="ti ti-file-invoice" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhuma ficha anexada</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Anexe o PDF da ficha assinada</div>')
-    +'<input type="file" id="ficha-file" accept=".pdf" style="display:none">'
-    +'<button class="btn btn-primary" id="btn-up-ficha"><i class="ti ti-upload"></i> '+(temFicha?'Substituir PDF':'Anexar ficha PDF')+'</button>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> '+(temFicha?'Substituir PDF':'Anexar ficha PDF')+'<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="uploadFichaEdit(event)"></label>'
     +'</div>'
     +'<div id="epanel-plano" style="display:none;text-align:center;padding:20px">'
     +(al.planoHtml
@@ -2321,80 +2365,15 @@ function openEditAluna(id){
        +'<div style="font-size:14px;font-weight:700;color:var(--cd);margin-bottom:4px">Plano de estudos anexado ✅</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Progresso: '+(al.planoProgresso||[]).length+'/30 dias</div>'
        +'<div style="display:flex;gap:10px;justify-content:center">'
-       +'<button class="btn btn-ghost" id="btn-rem-plano"><i class="ti ti-trash"></i> Remover plano</button></div><br>'
+       +'<button class="btn btn-ghost" onclick="removerPlanoEdit()"><i class="ti ti-trash"></i> Remover plano</button></div><br>'
       :'<i class="ti ti-notebook" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhum plano anexado</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Faça upload do HTML do plano de estudos</div>')
-    +'<input type="file" id="plano-file" accept=".html" style="display:none">'
-    +'<button class="btn btn-primary" id="btn-up-plano"><i class="ti ti-upload"></i> '+(al.planoHtml?'Substituir plano':'Carregar plano HTML')+'</button>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> '+(al.planoHtml?'Substituir plano':'Carregar plano HTML')+'<input type="file" accept=".html,text/html" style="display:none" onchange="uploadPlanoEdit(event)"></label>'
     +'</div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="salvarEditAluna()">Salvar alterações</button></div>';
   openModal(html);
-  setTimeout(function(){
-    // PDF upload
-    var btnUp=document.getElementById('btn-up-ficha');
-    var inp=document.getElementById('ficha-file');
-    if(btnUp&&inp){
-      btnUp.addEventListener('click',function(){inp.click();});
-      inp.addEventListener('change',function(){
-        if(!this.files||!this.files[0]) return;
-        if(this.files[0].type!=='application/pdf'){showToast('Apenas PDFs!');return;}
-        var reader=new FileReader();
-        reader.onload=function(e){
-          var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
-          if(a){a.fichaUrl=e.target.result;showToast('Ficha anexada! 📎');openEditAluna(window._editingAlunaId);}
-        };
-        reader.readAsDataURL(this.files[0]);
-      });
-    }
-    var btnRem=document.getElementById('btn-rem-ficha');
-    if(btnRem){btnRem.addEventListener('click',function(){
-      var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
-      if(a){a.fichaUrl=null;showToast('Ficha removida.');openEditAluna(window._editingAlunaId);}
-    });}
-    // Tabs — incluir painel plano
-    if(tabs){tabs.querySelectorAll('[data-tab]').forEach(function(el){
-      el.addEventListener('click',function(){
-        var tab=this.dataset.tab;
-        document.getElementById('epanel-dados').style.display=tab==='dados'?'':'none';
-        document.getElementById('epanel-ficha').style.display=tab==='ficha'?'':'none';
-        var ep=document.getElementById('epanel-plano');
-        if(ep) ep.style.display=tab==='plano'?'':'none';
-        tabs.querySelectorAll('[data-tab]').forEach(function(t){
-          t.style.borderBottomColor=t.dataset.tab===tab?'var(--cr)':'transparent';
-          t.style.color=t.dataset.tab===tab?'var(--cr)':'var(--crose)';
-        });
-      });
-    });}
-    // Upload plano HTML
-    var btnUpPlano=document.getElementById('btn-up-plano');
-    var inpPlano=document.getElementById('plano-file');
-    if(btnUpPlano&&inpPlano){
-      btnUpPlano.addEventListener('click',function(){inpPlano.click();});
-      inpPlano.addEventListener('change',function(){
-        if(!this.files||!this.files[0]) return;
-        var reader=new FileReader();
-        reader.onload=function(e){
-          var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
-          if(a){
-            a.planoHtml=e.target.result;
-            a.planoProgresso=[];
-            salvarAlunaDB(a);
-            showToast('Plano de estudos carregado! 📚');
-            openEditAluna(window._editingAlunaId);
-          }
-        };
-        reader.readAsText(this.files[0],'UTF-8');
-      });
-    }
-    // Remover plano
-    var btnRemPlano=document.getElementById('btn-rem-plano');
-    if(btnRemPlano){btnRemPlano.addEventListener('click',function(){
-      var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
-      if(a){a.planoHtml=null;a.planoProgresso=[];salvarAlunaDB(a);showToast('Plano removido.');openEditAluna(window._editingAlunaId);}
-    });}
-  },0);
 }
 
 function salvarEditAluna(){
