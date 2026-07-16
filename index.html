@@ -1812,7 +1812,7 @@ function openUploadPlanoAluna(alunaId){
       :'<i class="ti ti-notebook" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhum plano</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Selecione o HTML do plano de estudos</div>')
-    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> Selecionar plano HTML<input type="file" accept=".html,text/html" style="display:none" onchange="uploadPlanoAlunaFile(event,\''+alunaId+'\')"></label>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> Selecionar plano HTML<input type="file" accept=".html,text/html" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="uploadPlanoAlunaFile(event,\''+alunaId+'\')"></label>'
     +'</div>';
   openModal(html);
 }
@@ -1823,7 +1823,7 @@ function openUploadPlanoGlobal(){
   var html='<div class="mhdr"><h2>Carregar plano de estudos</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div style="padding:20px"><div class="fg"><label>Selecione a aluna</label><select id="sel-aluna-plano">'+opts+'</select></div>'
     +'<div style="margin-top:14px">'
-    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> Selecionar arquivo HTML<input type="file" accept=".html,text/html" style="display:none" onchange="uploadPlanoGlobalFile(event)"></label>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> Selecionar arquivo HTML<input type="file" accept=".html,text/html" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="uploadPlanoGlobalFile(event)"></label>'
     +'</div></div>';
   openModal(html);
 }
@@ -2357,7 +2357,7 @@ function openEditAluna(id){
       :'<i class="ti ti-file-invoice" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhuma ficha anexada</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Anexe o PDF da ficha assinada</div>')
-    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> '+(temFicha?'Substituir PDF':'Anexar ficha PDF')+'<input type="file" accept=".pdf,application/pdf" style="display:none" onchange="uploadFichaEdit(event)"></label>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> '+(temFicha?'Substituir PDF':'Anexar ficha PDF')+'<input type="file" accept=".pdf,application/pdf" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="uploadFichaEdit(event)"></label>'
     +'</div>'
     +'<div id="epanel-plano" style="display:none;text-align:center;padding:20px">'
     +(al.planoHtml
@@ -2369,7 +2369,7 @@ function openEditAluna(id){
       :'<i class="ti ti-notebook" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhum plano anexado</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Faça upload do HTML do plano de estudos</div>')
-    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> '+(al.planoHtml?'Substituir plano':'Carregar plano HTML')+'<input type="file" accept=".html,text/html" style="display:none" onchange="uploadPlanoEdit(event)"></label>'
+    +'<label class="btn btn-primary" style="cursor:pointer;margin:0"><i class="ti ti-upload"></i> '+(al.planoHtml?'Substituir plano':'Carregar plano HTML')+'<input type="file" accept=".html,text/html" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="uploadPlanoEdit(event)"></label>'
     +'</div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="salvarEditAluna()">Salvar alterações</button></div>';
@@ -3108,7 +3108,7 @@ function renderNF(c,a){
         +'<td>'+nfLink+'</td>'
         +'<td style="display:flex;gap:4px;align-items:center">'
         +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="toggleNF(this.dataset.alid)">'+(al.nfEmitida?'Desmarcar':'✅ Marcar')+'</button>'
-        +'<label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Anexar PDF">📎 PDF<input type="file" accept=".pdf" style="display:none" onchange="uploadNF(event,\''+al.id+'\')"></label>'
+        +'<label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Anexar PDF">📎 PDF<input type="file" accept=".pdf" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="uploadNF(event,\''+al.id+'\')"></label>'
         +'</td></tr>';
     }).join('')+'</table></div>';
 }
@@ -3806,6 +3806,16 @@ function renderAluFinanceiro(c){
 // MÓDULOS: SUPORTE / COBRANÇA / EXPERIÊNCIA
 // ══════════════════════════════════════════════════════
 var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
+
+// ── Selo de versão (para conferir se o deploy atualizou) ──
+var BUILD_VERSAO='v17.jul.B';
+(function(){
+  var b=document.createElement('div');
+  b.textContent=BUILD_VERSAO;
+  b.style.cssText='position:fixed;bottom:6px;right:8px;font-size:10px;color:rgba(121,20,40,.45);z-index:9998;pointer-events:none;font-weight:700';
+  if(document.body)document.body.appendChild(b);
+  else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(b);});
+})();
 
 // ── Estilos (nomes clicáveis + módulos) ──
 (function(){
