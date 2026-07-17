@@ -800,8 +800,11 @@ function doLoginAluno(){
   var err=document.getElementById('err-aluno');
   err.style.display='none';
   if(!email){err.style.display='block';err.textContent='Digite seu email.';return;}
-  var al=ALUNOS.find(function(a){return a.email.toLowerCase()===email&&a.senha===senha;});
-  if(!al){err.style.display='block';err.textContent='Email ou senha incorretos.';document.getElementById('al-senha').value='';return;}
+  if(!ALUNOS.length){err.style.display='block';err.textContent='⏳ Ainda carregando os dados... espere 2 segundos e clique em Entrar de novo.';return;}
+  var alEmail=ALUNOS.find(function(a){return (a.email||'').trim().toLowerCase()===email;});
+  if(!alEmail){err.style.display='block';err.textContent='Email não encontrado. Confira se digitou exatamente como está no cadastro.';return;}
+  var al=((alEmail.senha||'').trim()===senha)?alEmail:null;
+  if(!al){err.style.display='block';err.textContent='Senha incorreta para este email. (Dica: maiúsculas e minúsculas contam!)';document.getElementById('al-senha').value='';return;}
   S.alunoId=al.id;
   document.getElementById('screen-login').classList.add('hidden');
   document.getElementById('screen-aluno').classList.remove('hidden');
@@ -3844,7 +3847,7 @@ function renderAluFinanceiro(c){
 var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v17.jul.C';
+var BUILD_VERSAO='v17.jul.D';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
