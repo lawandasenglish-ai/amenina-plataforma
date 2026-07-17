@@ -800,7 +800,15 @@ function doLoginAluno(){
   var err=document.getElementById('err-aluno');
   err.style.display='none';
   if(!email){err.style.display='block';err.textContent='Digite seu email.';return;}
-  if(!ALUNOS.length){err.style.display='block';err.textContent='⏳ Ainda carregando os dados... espere 2 segundos e clique em Entrar de novo.';return;}
+  if(!ALUNOS.length){
+    err.style.display='block';
+    if(doLoginAluno._retry){err.textContent='Não consegui carregar os dados. Confira sua internet e recarregue a página.';doLoginAluno._retry=false;return;}
+    err.textContent='⏳ Carregando os dados, um instante...';
+    doLoginAluno._retry=true;
+    garantirDados().then(function(){doLoginAluno();}).catch(function(){err.textContent='Erro de conexão. Recarregue a página.';doLoginAluno._retry=false;});
+    return;
+  }
+  doLoginAluno._retry=false;
   var alEmail=ALUNOS.find(function(a){return (a.email||'').trim().toLowerCase()===email;});
   if(!alEmail){err.style.display='block';err.textContent='Email não encontrado. Confira se digitou exatamente como está no cadastro.';return;}
   var al=((alEmail.senha||'').trim()===senha)?alEmail:null;
@@ -841,7 +849,7 @@ function entrarApp(perf){
     +'<div style="font-size:13px;color:var(--crose)">Carregando dados...</div></div>';
   // Carregar dados PRIMEIRO, depois renderizar
   testarConexaoSupabase();
-  carregarDados().then(function(){
+  garantirDados().then(function(){
     buildNav();
     if(pc && tba) goPage(S.page);
   }).catch(function(e){
@@ -3846,8 +3854,20 @@ function renderAluFinanceiro(c){
 // ══════════════════════════════════════════════════════
 var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
 
+// ── Carregar dados na abertura da página (antes de qualquer login) ──
+var _dadosProntos=null;
+function garantirDados(){
+  if(!_dadosProntos)_dadosProntos=carregarDados();
+  return _dadosProntos;
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',function(){garantirDados();});
+}else{
+  garantirDados();
+}
+
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v17.jul.D';
+var BUILD_VERSAO='v17.jul.E';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
