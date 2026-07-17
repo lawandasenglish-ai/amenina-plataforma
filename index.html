@@ -518,7 +518,7 @@ function mapAluno(r){
     // Se não achou local, manter o UUID mas garantir que getTeacher funcione
   }
   return {id:r.id,nome:r.nome,email:r.email||'',ddi:r.ddi||'+55',tel:r.telefone||'',
-    senha:'Aluno2026',nivel:r.nivel||'A1',teacherId:localTeacherId||null,
+    senha:r.senha||'Aluno2026',nivel:r.nivel||'A1',teacherId:localTeacherId||null,
     aulasSemana:1,plano:r.plano||'Mensal',valor:r.valor||320,
     venc:r.vencimento||10,fin:r.financeiro||'Pendente',finCiclo:r.fin_ciclo||'',status:r.status||'Ativo',
     faltas:r.faltas||0,freq:r.frequencia||100,risco:r.risco||'low',
@@ -575,6 +575,7 @@ async function salvarAlunaDB(al){
       vencimento:parseInt(al.venc)||10,
       financeiro:al.fin||'Pendente',
       fin_ciclo:al.finCiclo||null,
+      senha:al.senha||'Aluno2026',
       status:al.status||'Ativo',
       faltas:parseInt(al.faltas)||0,
       frequencia:parseInt(al.freq)||100,
