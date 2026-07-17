@@ -527,7 +527,7 @@ function mapAluno(r){
     desconto:r.desconto||0,valorCheio:r.valor_cheio||r.valor||0,
     endereco:r.endereco||'',cidade:r.cidade||'',estado:r.estado||'',pais:r.pais||'Brasil',cep:r.cep||'',
     diasInadimplente:r.dias_inadimplente||0,dataAtraso:r.data_atraso||null,
-    nfUrl:r.nf_url||null,planoHtml:r.plano_html||null,planoProgresso:r.plano_progresso||[],comentarios:[]};
+    nfUrl:r.nf_url||null,planoHtml:r.plano_html||null,planoProgresso:(function(p){if(!p)return[];if(Array.isArray(p))return p;try{var v=JSON.parse(p);return Array.isArray(v)?v:[];}catch(e){return[];}})(r.plano_progresso),comentarios:[]};
 }
 function mapTeacher(r){
   return {id:r.id,nome:r.nome,email:r.email||''};
@@ -796,7 +796,7 @@ function doLogin(){
 
 function doLoginAluno(){
   var email=(document.getElementById('al-email').value||'').trim().toLowerCase();
-  var senha=document.getElementById('al-senha').value;
+  var senha=(document.getElementById('al-senha').value||'').trim();
   var err=document.getElementById('err-aluno');
   err.style.display='none';
   if(!email){err.style.display='block';err.textContent='Digite seu email.';return;}
@@ -1759,6 +1759,15 @@ function uploadPlanoEdit(ev){
   };
   reader.readAsText(f,'UTF-8');
 }
+function zerarProgressoPlano(){
+  var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
+  if(!a)return;
+  a.planoProgresso=[];
+  salvarAlunaDB(a);
+  showToast('Progresso zerado. ↺');
+  openEditAluna(window._editingAlunaId);
+  setTimeout(function(){switchEditTab('plano');},60);
+}
 function removerPlanoEdit(){
   var a=ALUNOS.find(function(x){return x.id===window._editingAlunaId;});
   if(!a)return;
@@ -2366,7 +2375,8 @@ function openEditAluna(id){
        +'<div style="font-size:14px;font-weight:700;color:var(--cd);margin-bottom:4px">Plano de estudos anexado ✅</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Progresso: '+(al.planoProgresso||[]).length+'/30 dias</div>'
        +'<div style="display:flex;gap:10px;justify-content:center">'
-       +'<button class="btn btn-ghost" onclick="removerPlanoEdit()"><i class="ti ti-trash"></i> Remover plano</button></div><br>'
+       +'<button class="btn btn-ghost" onclick="zerarProgressoPlano()" title="Zera os dias marcados como feitos">↺ Zerar progresso</button>'
+    +'<button class="btn btn-ghost" onclick="removerPlanoEdit()"><i class="ti ti-trash"></i> Remover plano</button></div><br>'
       :'<i class="ti ti-notebook" style="font-size:48px;color:var(--crose);display:block;margin-bottom:10px"></i>'
        +'<div style="font-size:14px;font-weight:600;color:var(--cd);margin-bottom:4px">Nenhum plano anexado</div>'
        +'<div style="font-size:12px;color:var(--crose);margin-bottom:14px">Faça upload do HTML do plano de estudos</div>')
@@ -2384,7 +2394,7 @@ function salvarEditAluna(){
   if(g('ea-nome')&&g('ea-nome').value.trim()) al.nome=g('ea-nome').value.trim();
   if(g('ea-email')&&g('ea-email').value.trim()) al.email=g('ea-email').value.trim();
   if(g('ea-tel')) al.tel=g('ea-tel').value;
-  if(g('ea-senha')&&g('ea-senha').value) al.senha=g('ea-senha').value;
+  if(g('ea-senha')&&g('ea-senha').value.trim()) al.senha=g('ea-senha').value.trim();
   if(g('ea-nivel')) al.nivel=g('ea-nivel').value;
   if(g('ea-teacher')) al.teacherId=g('ea-teacher').value;
   if(g('ea-aulas')) al.aulasSemana=parseInt(g('ea-aulas').value)||al.aulasSemana;
@@ -3609,7 +3619,12 @@ function renderAluPlano(c){
     +'<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:4px">📚 Meu Plano de Estudos</div>'
     +'<div style="background:rgba(121,20,40,.1);border-radius:99px;height:6px;overflow:hidden">'
     +'<div style="background:var(--cr);height:100%;border-radius:99px;width:'+pct+'%;transition:width .4s"></div></div></div>'
-    +'<div style="font-size:13px;font-weight:700;color:var(--cr)">'+pct+'%</div></div>'
+    +'<div style="font-size:13px;font-weight:700;color:var(--cr)">'+pct+'%</div>'
+    +'<div style="display:flex;gap:4px;align-items:center">'
+    +'<button class="btn btn-ghost btn-sm" onclick="ajustarZoomPlano(-0.1)" title="Diminuir">A−</button>'
+    +'<span id="plano-zoom-lbl" style="font-size:11px;color:var(--crose);min-width:34px;text-align:center">'+Math.round(_planoZoom*100)+'%</span>'
+    +'<button class="btn btn-ghost btn-sm" onclick="ajustarZoomPlano(0.1)" title="Aumentar">A+</button>'
+    +'</div></div>'
     +'<iframe id="plano-frame" style="width:100%;height:82vh;border:none" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>'
     +'</div>';
   // Injetar HTML no iframe + sincronizar progresso
@@ -3618,7 +3633,12 @@ function renderAluPlano(c){
     if(!iframe) return;
     var doc=iframe.contentDocument||iframe.contentWindow.document;
     // Modificar o HTML do plano para usar progresso salvo
-    var planoMod=al.planoHtml.replace(
+    var planoMod=al.planoHtml;
+    // Garante viewport para celular
+    if(planoMod.indexOf('name="viewport"')===-1&&planoMod.indexOf("name='viewport'")===-1){
+      planoMod=planoMod.replace(/<head([^>]*)>/i,'<head$1><meta name="viewport" content="width=device-width, initial-scale=1">');
+    }
+    planoMod=planoMod.replace(
       'var done = new Set();',
       'var done = new Set('+JSON.stringify(prog)+');'
     ).replace(
@@ -3626,7 +3646,22 @@ function renderAluPlano(c){
       'function toggleDone(d){if(done.has(d))done.delete(d);else done.add(d);renderAll();window.parent.postMessage({type:\'plano-progresso\',done:Array.from(done)},"*");}'
     );
     doc.open(); doc.write(planoMod); doc.close();
+    // Aplica o zoom escolhido (ou ajuste automático em telas pequenas)
+    setTimeout(function(){
+      if(window.innerWidth<600&&_planoZoom===1)_planoZoom=0.8;
+      if(doc.body)doc.body.style.zoom=_planoZoom;
+      var lbl=document.getElementById('plano-zoom-lbl');
+      if(lbl)lbl.textContent=Math.round(_planoZoom*100)+'%';
+    },150);
   },100);
+}
+var _planoZoom=1;
+function ajustarZoomPlano(d){
+  _planoZoom=Math.min(1.6,Math.max(0.4,Math.round((_planoZoom+d)*10)/10));
+  var iframe=document.getElementById('plano-frame');
+  if(iframe&&iframe.contentDocument&&iframe.contentDocument.body)iframe.contentDocument.body.style.zoom=_planoZoom;
+  var lbl=document.getElementById('plano-zoom-lbl');
+  if(lbl)lbl.textContent=Math.round(_planoZoom*100)+'%';
 }
 // Ouvir mensagens de progresso do iframe
 window.addEventListener('message',function(e){
@@ -3809,7 +3844,7 @@ function renderAluFinanceiro(c){
 var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v17.jul.B';
+var BUILD_VERSAO='v17.jul.C';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
