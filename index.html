@@ -3629,8 +3629,8 @@ function renderAluPlano(c){
     +'<div style="padding:14px 18px;border-bottom:1px solid rgba(121,20,40,.1);display:flex;align-items:center;gap:12px">'
     +'<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:4px">📚 Meu Plano de Estudos</div>'
     +'<div style="background:rgba(121,20,40,.1);border-radius:99px;height:6px;overflow:hidden">'
-    +'<div style="background:var(--cr);height:100%;border-radius:99px;width:'+pct+'%;transition:width .4s"></div></div></div>'
-    +'<div style="font-size:13px;font-weight:700;color:var(--cr)">'+pct+'%</div>'
+    +'<div id="plano-pct-fill" style="background:var(--cr);height:100%;border-radius:99px;width:'+pct+'%;transition:width .4s"></div></div></div>'
+    +'<div id="plano-pct" style="font-size:13px;font-weight:700;color:var(--cr)">'+pct+'%</div>'
     +'<div style="display:flex;gap:4px;align-items:center">'
     +'<button class="btn btn-ghost btn-sm" onclick="ajustarZoomPlano(-0.1)" title="Diminuir">A−</button>'
     +'<span id="plano-zoom-lbl" style="font-size:11px;color:var(--crose);min-width:34px;text-align:center">'+Math.round(_planoZoom*100)+'%</span>'
@@ -3649,13 +3649,29 @@ function renderAluPlano(c){
     if(planoMod.indexOf('name="viewport"')===-1&&planoMod.indexOf("name='viewport'")===-1){
       planoMod=planoMod.replace(/<head([^>]*)>/i,'<head$1><meta name="viewport" content="width=device-width, initial-scale=1">');
     }
-    planoMod=planoMod.replace(
-      'var done = new Set();',
-      'var done = new Set('+JSON.stringify(prog)+');'
-    ).replace(
-      'function toggleDone(d){if(done.has(d))done.delete(d);else done.add(d);renderAll();}',
-      'function toggleDone(d){if(done.has(d))done.delete(d);else done.add(d);renderAll();window.parent.postMessage({type:\'plano-progresso\',done:Array.from(done)},"*");}'
-    );
+    // Semeia o progresso salvo no banco (aceita var/let/const e espaçamentos diferentes)
+    planoMod=planoMod.replace(/(var|let|const)(\s+done\s*=\s*new\s+Set\s*\()\s*\)/,
+      function(m,g1,g2){return g1+g2+JSON.stringify(prog)+')';});
+    // Ponte universal: após qualquer clique, colhe o estado e envia à plataforma
+    var ponte='<scr'+'ipt>(function(){'
+      +'var INIT='+JSON.stringify(prog)+';'
+      +'function colher(){try{'
+      +'if(typeof done!=="undefined"&&done&&typeof done.forEach==="function"){'
+      +'var arr=[];done.forEach(function(x){arr.push(x);});'
+      +'parent.postMessage({type:"plano-progresso",done:arr},"*");'
+      +'}}catch(e){}}'
+      +'window.addEventListener("load",function(){setTimeout(function(){try{'
+      +'if(typeof done!=="undefined"&&done&&done.add&&done.size===0&&INIT.length){'
+      +'INIT.forEach(function(d){done.add(d);});'
+      +'if(typeof renderAll==="function")renderAll();'
+      +'else if(typeof render==="function")render();'
+      +'else if(typeof update==="function")update();'
+      +'}}catch(e){}},200);});'
+      +'document.addEventListener("click",function(){setTimeout(colher,180);},true);'
+      +'document.addEventListener("change",function(){setTimeout(colher,180);},true);'
+      +'})();</scr'+'ipt>';
+    if(planoMod.indexOf('</body>')>-1)planoMod=planoMod.replace('</body>',ponte+'</body>');
+    else planoMod+=ponte;
     doc.open(); doc.write(planoMod); doc.close();
     // Aplica o zoom escolhido (ou ajuste automático em telas pequenas)
     setTimeout(function(){
@@ -3675,19 +3691,24 @@ function ajustarZoomPlano(d){
   if(lbl)lbl.textContent=Math.round(_planoZoom*100)+'%';
 }
 // Ouvir mensagens de progresso do iframe
+var _salvarProgTimer=null;
 window.addEventListener('message',function(e){
   if(!e.data||e.data.type!=='plano-progresso') return;
   var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
   if(!al) return;
-  al.planoProgresso=e.data.done||[];
-  salvarAlunaDB(al);
-  // Atualizar barra de progresso
-  var pct=Math.round(al.planoProgresso.length/30*100);
-  var bar=document.querySelector('#plano-frame').previousElementSibling;
-  if(bar){
-    var fill=bar.querySelector('div[style*="background:var(--cr)"]');
-    var pctEl=bar.nextElementSibling;
-    if(fill) fill.style.width=pct+'%';
+  var novo=e.data.done||[];
+  var mudou=JSON.stringify(novo)!==JSON.stringify(al.planoProgresso||[]);
+  al.planoProgresso=novo;
+  // Atualiza a barra e o número na hora
+  var pct=Math.min(100,Math.round(novo.length/30*100));
+  var fill=document.getElementById('plano-pct-fill');
+  var num=document.getElementById('plano-pct');
+  if(fill)fill.style.width=pct+'%';
+  if(num)num.textContent=pct+'%';
+  // Salva no banco com uma pequena pausa (evita salvar 10x em cliques seguidos)
+  if(mudou){
+    if(_salvarProgTimer)clearTimeout(_salvarProgTimer);
+    _salvarProgTimer=setTimeout(function(){salvarAlunaDB(al);},900);
   }
 });
 // ── LIVROS ──────────────────────────────────────────────
@@ -3867,7 +3888,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v17.jul.E';
+var BUILD_VERSAO='v17.jul.F';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
