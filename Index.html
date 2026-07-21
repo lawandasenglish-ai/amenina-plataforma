@@ -2430,7 +2430,8 @@ function salvarEditAluna(){
   }
   salvarAlunaDB(al);
   closeModal();showToast('Dados atualizados! ✅');
-  renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
+  if(S.page==='ficha-aluna'&&window._fichaAlunaId){abrirFichaAluna(window._fichaAlunaId);}
+  else{renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));}
 }
 </script>
 <script>
@@ -3901,7 +3902,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v17.jul.G';
+var BUILD_VERSAO='v22.jul.A';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
@@ -3927,8 +3928,121 @@ document.addEventListener('click',function(e){
   var td=e.target.closest('td.nm[data-alid]');
   if(!td)return;
   var al=ALUNOS.find(function(x){return x.id===td.dataset.alid;});
-  if(al)openEditAluna(al.id);
+  if(al)abrirFichaAluna(al.id);
 });
+
+// ══════════════════════════════════════════════════════
+// FICHA 360° DA ALUNA (diretoria)
+// ══════════════════════════════════════════════════════
+function abrirFichaAluna(id){
+  var al=ALUNOS.find(function(x){return x.id===id;});
+  if(!al)return;
+  window._fichaAlunaId=id;
+  S.page='ficha-aluna';
+  document.querySelectorAll('.ni[data-pg]').forEach(function(el){el.classList.remove('active');});
+  var pt=document.getElementById('page-title');
+  if(pt)pt.textContent='👤 '+al.nome;
+  var a=document.getElementById('tb-actions');
+  a.innerHTML='<button class="btn btn-ghost btn-sm" onclick="goPage(\'alunos\')"><i class="ti ti-arrow-left"></i> Voltar</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="openEditAluna(\''+id+'\')"><i class="ti ti-pencil"></i> Editar dados</button>';
+  var c=document.getElementById('pc');
+
+  atualizarDiasInadimplente();
+  var teacher=getTeacher(al.teacherId).nome||'—';
+  var prog=al.planoProgresso||[];
+  var pctPlano=al.planoHtml?Math.min(100,Math.round(prog.length/30*100)):null;
+
+  // Aulas
+  var aulas=AULAS.filter(function(r){return r.alunoId===al.id;}).sort(function(x,y){return (y.data||'').localeCompare(x.data||'');});
+  var presentes=aulas.filter(function(r){return r.presenca==='Presente';}).length;
+  var faltas=aulas.filter(function(r){return r.presenca==='Faltou';}).length;
+  var repos=aulas.filter(function(r){return r.reposicao;}).length;
+
+  // Financeiro
+  var pgtos=PAGAMENTOS.filter(function(p){return p.alunoId===al.id;}).sort(function(x,y){return (y.data||'').localeCompare(x.data||'');});
+  var contatos=COBRANCA.filter(function(t){return t.alunoId===al.id;}).sort(function(x,y){return (y.data||'').localeCompare(x.data||'');});
+
+  // Suporte + experiência
+  var chamados=SUPORTE.filter(function(t){return t.alunoId===al.id;}).sort(function(x,y){return (y.data||'').localeCompare(x.data||'');});
+  var chamAbertos=chamados.filter(function(t){return t.status!=='resolvido';}).length;
+  var uc=ultimoRegistro(al.id,'checkin');
+  var un=ultimoRegistro(al.id,'nps');
+
+  // Materiais
+  var livros=LIVROS.filter(function(l){return (l.liberadoPara||[]).includes(al.id);});
+
+  var retEmoji={'Prometeu pagar':'🤝','Pediu parcelamento':'📆','Contestou':'⚖️','Sem resposta':'🔇','Pagou':'✅','Outro':'💬'};
+
+  c.innerHTML=''
+  // ── Linha de indicadores ──
+  +'<div class="sg g4">'
+  +'<div class="sc"><div class="sl">Status</div><div style="margin-top:6px">'+bdg(al.status)+'</div></div>'
+  +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'"><div class="sl">Financeiro</div><div style="margin-top:6px">'+bdg(al.fin)+(al.fin==='Atrasado'?'<div style="font-size:10px;color:#991b1b;margin-top:2px">'+(al.diasInadimplente||0)+' dias</div>':'')+'</div></div>'
+  +'<div class="sc '+(al.freq<85?'warn':'ok')+'"><div class="sl">Frequência</div><div class="sv">'+al.freq+'%</div></div>'
+  +'<div class="sc"><div class="sl">Plano de estudos</div><div class="sv">'+(pctPlano===null?'—':pctPlano+'%')+'</div></div>'
+  +'</div>'
+
+  // ── Matrícula & contato ──
+  +'<div class="card"><div class="ch"><i class="ti ti-id"></i><h3>📋 Matrícula & Contato</h3></div>'
+  +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 24px;padding:4px 16px 16px;font-size:12px">'
+  +'<div><b>Email:</b> '+(al.email||'—')+'</div>'
+  +'<div><b>WhatsApp:</b> '+((al.ddi?al.ddi+' ':'')+(al.tel||'—'))+'</div>'
+  +'<div><b>Nível:</b> '+al.nivel+' · <b>Teacher:</b> '+teacher+'</div>'
+  +'<div><b>Aulas/semana:</b> '+(al.aulasSemana||1)+'x</div>'
+  +'<div><b>Plano:</b> '+al.plano+' · <b>Valor:</b> R$ '+al.valor+(al.desconto>0?' ('+al.desconto+'% off)':'')+'</div>'
+  +'<div><b>Vencimento:</b> dia '+al.venc+'</div>'
+  +'<div><b>Endereço:</b> '+([al.endereco,al.cidade,al.estado,al.pais].filter(Boolean).join(', ')||'—')+(al.cep?' · CEP '+al.cep:'')+'</div>'
+  +'<div><b>Ficha de matrícula:</b> '+(al.fichaUrl?'<a href="'+al.fichaUrl+'" target="_blank" style="color:var(--cr);font-weight:700">📎 Abrir PDF</a>':'não anexada')+'</div>'
+  +'</div></div>'
+
+  // ── Financeiro ──
+  +'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>💰 Financeiro</h3></div>'
+  +'<div style="padding:0 16px 16px">'
+  +'<div style="font-size:12px;margin-bottom:10px"><b>Pagamentos registrados:</b></div>'
+  +(pgtos.length?'<table class="tbl"><tr><th>Data</th><th>Valor</th></tr>'
+    +pgtos.slice(0,6).map(function(p){return '<tr><td style="font-size:12px">'+fmtDateBr(p.data)+'</td><td style="font-size:12px">R$ '+p.valor+'</td></tr>';}).join('')+'</table>'
+    :'<div style="font-size:12px;color:var(--crose);margin-bottom:10px">Nenhum pagamento registrado (registro começou em jul/2026).</div>')
+  +(contatos.length?'<div style="font-size:12px;margin:12px 0 6px"><b>Últimos contatos de cobrança:</b></div>'
+    +contatos.slice(0,3).map(function(t){
+      return '<div class="timeline-item"><div style="font-size:11px;color:var(--crose)">'+fmtDateBr(t.data)+' · '+t.canal+'</div>'
+        +'<div style="font-size:12px">'+t.resumo+'</div>'
+        +'<div style="font-size:12px;font-weight:700">'+(retEmoji[t.retorno]||'💬')+' '+t.retorno+(t.retornoDetalhe?' — '+t.retornoDetalhe:'')+'</div></div>';
+    }).join(''):'')
+  +'</div></div>'
+
+  // ── Aulas ──
+  +'<div class="card"><div class="ch"><i class="ti ti-book"></i><h3>📖 Aulas</h3></div>'
+  +'<div style="padding:0 16px 16px">'
+  +'<div style="font-size:12px;margin-bottom:10px">'+aulas.length+' registradas · '+presentes+' presentes · '+faltas+' faltas · '+repos+' reposições</div>'
+  +(aulas.length?'<table class="tbl"><tr><th>Data</th><th>Presença</th><th>Tópico / Página</th><th>Conteúdo</th></tr>'
+    +aulas.slice(0,6).map(function(r){
+      return '<tr><td style="font-size:12px">'+fmtDateBr(r.data)+(r.reposicao?' 🔄':'')+'</td><td>'+bdg(r.presenca)+'</td>'
+        +'<td style="font-size:12px;font-weight:700;color:var(--cr)">'+((r.topico||'')+(r.topico&&r.pagina?' · ':'')+(r.pagina?'📄 '+r.pagina:'')||'—')+'</td>'
+        +'<td style="font-size:11px;color:var(--crose)">'+(r.conteudo||'—')+'</td></tr>';
+    }).join('')+'</table>'
+    :'<div style="font-size:12px;color:var(--crose)">Nenhuma aula registrada.</div>')
+  +'</div></div>'
+
+  // ── Plano & Materiais ──
+  +'<div class="card"><div class="ch"><i class="ti ti-notebook"></i><h3>📚 Plano de Estudos & Materiais</h3></div>'
+  +'<div style="padding:0 16px 16px;font-size:12px">'
+  +'<div style="margin-bottom:8px"><b>Plano de estudos:</b> '+(al.planoHtml?'anexado ✅ · progresso '+pctPlano+'% ('+prog.length+' itens)':'não anexado')+'</div>'
+  +'<div><b>Livros liberados ('+livros.length+'):</b> '+(livros.length?livros.map(function(l){return l.titulo+' ('+l.nivel+')';}).join(' · '):'nenhum')+'</div>'
+  +'</div></div>'
+
+  // ── Suporte & Experiência ──
+  +'<div class="card"><div class="ch"><i class="ti ti-lifebuoy"></i><h3>🎫 Suporte & 💚 Experiência</h3></div>'
+  +'<div style="padding:0 16px 16px;font-size:12px">'
+  +'<div style="margin-bottom:8px"><b>Chamados:</b> '+chamados.length+' no total'+(chamAbertos?' · <span style="color:#991b1b;font-weight:700">'+chamAbertos+' em aberto ⚠️</span>':' · todos resolvidos ✅')+'</div>'
+  +(chamados.length?chamados.slice(0,3).map(function(t){
+      return '<div class="timeline-item"><div style="font-size:11px;color:var(--crose)">'+fmtDateBr(t.data)+' · '+t.categoria+' · '+(t.status==='resolvido'?'✅ Resolvido':t.status==='andamento'?'🔄 Em andamento':'🔴 Aberto')+'</div>'
+        +'<div>'+t.descricao+'</div>'+(t.resolucao?'<div style="color:#166534">✔ '+t.resolucao+'</div>':'')+'</div>';
+    }).join(''):'')
+  +'<div style="margin-top:10px"><b>Último check-in:</b> '+(uc?humorLbl(uc.humor)+' em '+fmtDateBr(uc.data)+(uc.comentario?' — "'+uc.comentario+'"':''):'nenhum')+'</div>'
+  +'<div><b>NPS:</b> '+(un&&(un.nota===0||un.nota)?un.nota+'/10 em '+fmtDateBr(un.data):'sem resposta ainda')+'</div>'
+  +'</div></div>';
+  window.scrollTo(0,0);
+}
 
 // ── Navegação e títulos ──
 NAVS.gestao.push({s:'Suporte & Experiência'},
