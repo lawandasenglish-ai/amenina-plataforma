@@ -387,15 +387,22 @@ function uuid(){
 // ══════════════════════════════════════════════════════
 // DADOS LOCAIS (fallback + cache)
 // ══════════════════════════════════════════════════════
+// ATENCAO: NUNCA apague uma teacher desta lista.
+// Quem saiu fica com ativo:false para o historico de aulas continuar
+// aparecendo com o nome certo. Apagar aqui = aulas antigas viram "-".
 var TEACHERS=[
-  {id:'t0',nome:'Lawanda',email:'lawanda@amenina.com'},
-  {id:'t1',nome:'Kessia',email:'kessia@amenina.com'},
-  {id:'t2',nome:'Alice',email:'alice@amenina.com'},
-  {id:'t3',nome:'Aline',email:'aline@amenina.com'},
-  {id:'t4',nome:'Nínive',email:'ninive@amenina.com'},
-  {id:'t5',nome:'Bruna',email:'bruna@amenina.com'},
-  {id:'t6',nome:'Islla',email:'islla@amenina.com'},
-  {id:'t7',nome:'Isabella',email:'isabella@amenina.com'},
+  {id:'t0',nome:'Lawanda',email:'lawanda@amenina.com',ativo:true},
+  {id:'t1',nome:'Kessia',email:'kessia@amenina.com',ativo:true},
+  {id:'t2',nome:'Alice',email:'alice@amenina.com',ativo:true},
+  {id:'t3',nome:'Aline',email:'aline@amenina.com',ativo:false,saidaEm:'2026-08'},
+  {id:'t4',nome:'Nínive',email:'ninive@amenina.com',ativo:false,saidaEm:'2026-08'},
+  {id:'t5',nome:'Bruna',email:'bruna@amenina.com',ativo:false,saidaEm:'2026-08'},
+  {id:'t6',nome:'Islla',email:'islla@amenina.com',ativo:false,saidaEm:'2026-08'},
+  {id:'t7',nome:'Isabella',email:'isabella@amenina.com',ativo:false,saidaEm:'2026-08'},
+  {id:'t8',nome:'Lorrana',email:'lorrana@amenina.com',ativo:true},
+  {id:'t9',nome:'Nayhla',email:'nayhla@amenina.com',ativo:true},
+  {id:'t10',nome:'Heloisa',email:'heloisa@amenina.com',ativo:true},
+  {id:'t11',nome:'Kamilla',email:'kamilla@amenina.com',ativo:true},
 ];
 
 var EQUIPE=[
@@ -404,11 +411,10 @@ var EQUIPE=[
   {id:'e3',nome:'Luana',role:'comercial',roleLabel:'Comercial',usuario:'luana',senha:'Comercial4@',avatar:'LU',teacherId:null,duploPerfil:false},
   {id:'e4',nome:'Raynara',role:'financeiro',roleLabel:'Financeiro',usuario:'raynara',senha:'Financeiro3@',avatar:'RA',teacherId:null,duploPerfil:false},
   {id:'e5',nome:'Alice',role:'teacher',roleLabel:'Teacher',usuario:'alice',senha:'Teachers2026@',avatar:'AL',teacherId:'t2',duploPerfil:false},
-  {id:'e6',nome:'Aline',role:'teacher',roleLabel:'Teacher',usuario:'aline',senha:'Teachers2026@',avatar:'AI',teacherId:'t3',duploPerfil:false},
-  {id:'e7',nome:'Nínive',role:'teacher',roleLabel:'Teacher',usuario:'ninive',senha:'Teachers2026@',avatar:'NI',teacherId:'t4',duploPerfil:false},
-  {id:'e8',nome:'Bruna',role:'teacher',roleLabel:'Teacher',usuario:'bruna',senha:'Teachers2026@',avatar:'BR',teacherId:'t5',duploPerfil:false},
-  {id:'e9',nome:'Islla',role:'teacher',roleLabel:'Teacher',usuario:'islla',senha:'Teachers2026@',avatar:'IS',teacherId:'t6',duploPerfil:false},
-  {id:'e10',nome:'Isabella',role:'teacher',roleLabel:'Teacher',usuario:'isabella',senha:'Teachers2026@',avatar:'IB',teacherId:'t7',duploPerfil:false},
+  {id:'e11',nome:'Lorrana',role:'teacher',roleLabel:'Teacher',usuario:'lorrana',senha:'Teachers2026@',avatar:'LO',teacherId:'t8',duploPerfil:false},
+  {id:'e12',nome:'Nayhla',role:'teacher',roleLabel:'Teacher',usuario:'nayhla',senha:'Teachers2026@',avatar:'NY',teacherId:'t9',duploPerfil:false},
+  {id:'e13',nome:'Heloisa',role:'teacher',roleLabel:'Teacher',usuario:'heloisa',senha:'Teachers2026@',avatar:'HE',teacherId:'t10',duploPerfil:false},
+  {id:'e14',nome:'Kamilla',role:'teacher',roleLabel:'Teacher',usuario:'kamilla',senha:'Teachers2026@',avatar:'KA',teacherId:'t11',duploPerfil:false},
 ];
 
 var ALUNOS=[];
@@ -426,8 +432,18 @@ var VENC=[5,10,15,20,30];
 var PRECOS={
   individual:{1:468,2:702,3:923,4:1235},
   turma:{2:325},
-  dupla:{1:544,2:936,3:1287}
+  dupla:{1:544,2:936,3:1287},
+  peg:{1:120,2:120,3:120,4:120,5:120}
 };
+// Tipos que podem dividir o mesmo horario com outras alunas
+var TIPOS_COMPARTILHADOS=['peg','dupla','turma'];
+function tipoCompartilha(tipo){ return TIPOS_COMPARTILHADOS.indexOf(tipo)!==-1; }
+// Um slot pode ter varias alunas: aluno_id guarda ids separados por virgula
+function slotAlunoIds(sl){
+  if(!sl||!sl.alunoId) return [];
+  return String(sl.alunoId).split(',').map(function(x){return x.trim();}).filter(Boolean);
+}
+function slotTemAluno(sl,id){ return slotAlunoIds(sl).indexOf(id)!==-1; }
 function calcularValor(tipo,aulasSemana){
   var t=PRECOS[tipo]||PRECOS['individual'];
   return t[aulasSemana]||t[Object.keys(t)[0]]||0;
@@ -1048,7 +1064,7 @@ function calcCustoAula(aula){
   var al=ALUNOS.find(function(a){return a.id===aula.alunoId;});
   var tipo=(al?al.tipo:null)||'individual';
   if(aula.presenca==='Montada') return CUSTO_GRUPO; // montada sempre R$35
-  return (tipo==='individual')?CUSTO_INDIVIDUAL:CUSTO_GRUPO;
+  return (tipo==='individual')?CUSTO_INDIVIDUAL:CUSTO_GRUPO;  // peg/dupla/turma = grupo
 }
 
 function calcCustoMesTeacher(teacherId, mes, ano){
@@ -1267,8 +1283,8 @@ function renderCustoTeachers(rc){
     var montadas=aulasDoMes.filter(function(a){return a.presenca==='Montada';}).length;
     var faltou=aulasDoMes.filter(function(a){return a.presenca==='Faltou';}).length;
     var custo=calcCustoMesTeacher(tid,mes,ano)+calcCustoMesTeacher(t.id,mes,ano);
-    return {nome:t.nome,presentes:presentes,canceladas:canceladas,remarcadas:remarcadas,montadas:montadas,faltou:faltou,custo:custo,total:aulasDoMes.length};
-  }).filter(function(r){return r.total>0||true;});
+    return {nome:t.nome+((t.ativo===false)?' (ex-teacher)':''),ativa:(t.ativo!==false),presentes:presentes,canceladas:canceladas,remarcadas:remarcadas,montadas:montadas,faltou:faltou,custo:custo,total:aulasDoMes.length};
+  }).filter(function(r){return r.ativa||r.total>0||r.custo>0;});
 
   var totalCusto=rows.reduce(function(s,r){return s+r.custo;},0);
 
@@ -1339,7 +1355,7 @@ function renderRelFinanceiro(rc){
   });
 
   // Receita por tipo
-  var porTipo = {individual:0,dupla:0,turma:0};
+  var porTipo = {individual:0,dupla:0,turma:0,peg:0};
   totalAtivos.forEach(function(a){
     var tipo=a.tipo||'individual';
     if(!porTipo[tipo]) porTipo[tipo]=0;
@@ -1389,8 +1405,8 @@ function renderRelFinanceiro(rc){
     var ctx2=document.getElementById('chart-tipo');
     if(ctx2){
       _charts.tipo=new Chart(ctx2,{type:'doughnut',data:{
-        labels:['Individual','Dupla','Turma'],
-        datasets:[{data:[porTipo.individual,porTipo.dupla,porTipo.turma],backgroundColor:['#791428','#BC5572','#F7C6D3']}]
+        labels:['Individual','Dupla','Turma','PEG'],
+        datasets:[{data:[porTipo.individual,porTipo.dupla,porTipo.turma,porTipo.peg],backgroundColor:['#791428','#BC5572','#F7C6D3','#2d6a10']}]
       },options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
     }
     // Por teacher
@@ -1583,7 +1599,8 @@ function exportarExcel(){
     var remar=aulasM.filter(function(a){return a.presenca==='Remarcada';}).length;
     var falt=aulasM.filter(function(a){return a.presenca==='Faltou';}).length;
     var custo=calcCustoMesTeacher(tid,hoje2.getMonth(),hoje2.getFullYear())+calcCustoMesTeacher(t.id,hoje2.getMonth(),hoje2.getFullYear());
-    custoData.push([t.nome,pres,canc,mont,remar,falt,custo]);
+    if(t.ativo===false&&aulasM.length===0&&custo===0) return;
+    custoData.push([t.nome+((t.ativo===false)?' (ex-teacher)':''),pres,canc,mont,remar,falt,custo]);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(custoData), 'Custo Teachers');
 
@@ -1632,6 +1649,29 @@ function getTeacher(id){
   var localId=Object.keys(_teacherIdMap).find(function(k){return _teacherIdMap[k]===id && k!==id;});
   if(localId) return TEACHERS.find(function(t){return t.id===localId;})||{nome:'—'};
   return {nome:'—'};
+}
+// Teachers ativas (para selecoes e cadastros). O historico usa TEACHERS completo.
+function teachersAtivas(){
+  return TEACHERS.filter(function(t){return t.ativo!==false;});
+}
+// Opcoes de <select>: ativas + a teacher atual do registro (mesmo se inativa),
+// para nunca trocar sem querer a teacher de uma aluna ao salvar.
+function optsTeachers(selId){
+  var lista=teachersAtivas().slice();
+  if(selId){
+    var atual=TEACHERS.find(function(t){return t.id===selId;});
+    if(!atual){
+      var lid=Object.keys(_teacherIdMap).find(function(k){return _teacherIdMap[k]===selId&&k!==selId;});
+      if(lid) atual=TEACHERS.find(function(t){return t.id===lid;});
+    }
+    if(atual&&lista.indexOf(atual)===-1) lista.push(atual);
+  }
+  return lista.sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');})
+    .map(function(t){
+      var sel=(t.id===selId)?' selected':'';
+      var tag=(t.ativo===false)?' (inativa)':'';
+      return '<option value="'+t.id+'"'+sel+'>'+t.nome+tag+'</option>';
+    }).join('');
 }
 function myAlunos(){
   if(S.perfil==='teacher'&&S.teacherId){
@@ -1883,7 +1923,7 @@ function renderDashboard(c,a){
     var urgAlta=notasPend.filter(function(n){return n.urgencia==='alta';});
     c.innerHTML=welcome
       +'<div class="sg g4">'
-      +'<div class="sc"><div class="sl">Alunas</div><div class="sv">'+ALUNOS.length+'</div><div class="ss">'+TEACHERS.length+' teachers</div></div>'
+      +'<div class="sc"><div class="sl">Alunas</div><div class="sv">'+ALUNOS.length+'</div><div class="ss">'+teachersAtivas().length+' teachers</div></div>'
       +'<div class="sc '+(atrasadas.length?'warn':'ok')+'"><div class="sl">Inadimplentes</div><div class="sv">'+atrasadas.length+'</div></div>'
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'<div class="sc '+(urgAlta.length?'warn':'ok')+'"><div class="sl">Notas urgentes</div><div class="sv">'+urgAlta.length+'</div></div>'
@@ -2023,7 +2063,7 @@ function salvarEquipe(){
   var av=inits(nome);
   var newId='e'+Date.now();
   var tid=role==='teacher'?'t'+Date.now():null;
-  if(role==='teacher') TEACHERS.push({id:tid,nome:nome,email:usuario+'@amenina.com'});
+  if(role==='teacher') TEACHERS.push({id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true});
   EQUIPE.push({id:newId,nome:nome,role:role,roleLabel:labels[role],usuario:usuario,senha:senha,avatar:av,teacherId:tid,duploPerfil:false});
   closeModal();showToast('Membro adicionado! ✅');
   renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
@@ -2059,8 +2099,7 @@ var _horariosSelec=[];
 
 function openCadastrarAluna(){
   _horariosSelec=[];
-  var tOpts=TEACHERS.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');})
-    .map(function(t){return '<option value="'+t.id+'">'+t.nome+'</option>';}).join('');
+  var tOpts=optsTeachers(null);
   var vOpts=VENC.map(function(d){return '<option value="'+d+'">Dia '+d+'</option>';}).join('');
   var html='<div class="mhdr"><h2>Cadastrar aluna</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fst">Dados pessoais</div>'
@@ -2080,7 +2119,7 @@ function openCadastrarAluna(){
     +'<div class="fst">Dados pedagógicos</div>'
     +'<div class="fgrid"><div class="fg"><label>Nível</label><select id="ca-nivel"><option value="A1">A1 — Iniciante</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option></select></div>'
     +'<div class="fg"><label>Teacher responsável</label><select id="ca-teacher">'+tOpts+'</select></div></div>'
-    +'<div class="fgrid"><div class="fg"><label>Tipo de aula</label><select id="ca-tipo" onchange="atualizarValorAuto();toggleCampoDupla()"><option value="individual">👩‍💻 Individual</option><option value="dupla">👯 Em dupla</option><option value="turma">👩‍🏫 Turma</option></select></div>'
+    +'<div class="fgrid"><div class="fg"><label>Tipo de aula</label><select id="ca-tipo" onchange="atualizarValorAuto();toggleCampoDupla()"><option value="individual">👩‍💻 Individual</option><option value="dupla">👯 Em dupla</option><option value="turma">👩‍🏫 Turma</option><option value="peg">📘 PEG</option></select></div>'
     +'<div class="fg"><label>Aulas por semana</label><select id="ca-aulas-semana" onchange="atualizarValorAuto()"><option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option></select></div></div>'
     +'<div class="fg" style="margin:0 0 12px"><label>Horários disponíveis (clique para selecionar)</label><div id="ca-horarios-disp" style="background:rgba(121,20,40,.03);border-radius:8px;padding:8px;min-height:40px;font-size:11px;color:var(--crose)">Selecione uma teacher para ver horários.</div></div>'
     +'<div class="fst">Dados financeiros</div>'
@@ -2205,15 +2244,19 @@ function renderGradeDisp(teacherId,div,aulasSemana){
   var mon=new Date(hoje);mon.setDate(hoje.getDate()-(dow===0?6:dow-1));
   var dias=[];
   for(var i=0;i<5;i++){var d=new Date(mon);d.setDate(mon.getDate()+i);dias.push(d.toISOString().split('T')[0]);}
-  var ocupados={};
+  var tipoSel=(document.getElementById('ca-tipo')||{value:'individual'}).value;
+  var compart=tipoCompartilha(tipoSel);
+  var ocupados={},bloqueados={};
   Object.keys(HORARIOS).forEach(function(k){
     var sl=HORARIOS[k];
     if(sl.teacherId===teacherId){
-      var p=k.split('_');
-      if(sl.tipo==='bloqueado'||sl.alunoId) ocupados[p[1]+'_'+p[2]]=true;
+      var p=k.split('_');var kk=p[1]+'_'+p[2];
+      if(sl.tipo==='bloqueado') bloqueados[kk]=true;
+      else if(sl.alunoId) ocupados[kk]=slotAlunoIds(sl).length;
     }
   });
   var info='<div style="font-size:10px;color:var(--cr);font-weight:600;margin-bottom:6px">Clique para selecionar '+aulasSemana+' horário'+(aulasSemana>1?'s':'')+' ('+_horariosSelec.length+'/'+aulasSemana+')</div>';
+  if(compart) info+='<div style="font-size:10px;color:#7a5200;background:rgba(255,193,7,.15);border-radius:6px;padding:4px 6px;margin-bottom:6px">Tipo '+tipoSel.toUpperCase()+': os quadradinhos amarelos já têm aluna, mas podem receber mais uma no mesmo horário.</div>';
   var tbl='<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:9px;width:100%">';
   tbl+='<tr><th style="padding:2px 3px;background:var(--cd);color:var(--ccream);border:1px solid rgba(247,198,211,.1);width:32px">H</th>';
   diasNomes.forEach(function(n,i){tbl+='<th style="padding:2px 3px;background:var(--cd);color:var(--ccream);border:1px solid rgba(247,198,211,.1)">'+n+'<br><span style="opacity:.6;font-size:8px">'+dias[i].slice(5).replace('-','/')+'</span></th>';});
@@ -2222,11 +2265,14 @@ function renderGradeDisp(teacherId,div,aulasSemana){
     tbl+='<tr><td style="padding:2px 3px;background:var(--cd);color:var(--cp);font-size:8px;text-align:center;font-weight:700;border:1px solid rgba(247,198,211,.1)">'+hora+'</td>';
     dias.forEach(function(dia){
       var key=dia+'_'+hora;
-      var ocp=!!ocupados[key];
+      var qtd=ocupados[key]||0;
+      var ocp=bloqueados[key]||(qtd>0&&!compart);
       var selKey=teacherId+'_'+dia+'_'+hora;
       var sel=_horariosSelec.indexOf(selKey)!==-1;
       if(ocp){
         tbl+='<td style="padding:1px;border:1px solid rgba(121,20,40,.07);text-align:center;background:rgba(121,20,40,.06)"><span style="font-size:8px;color:#aaa">✗</span></td>';
+      } else if(qtd>0){
+        tbl+='<td style="padding:1px;border:1px solid rgba(121,20,40,.07);text-align:center;cursor:pointer;background:'+(sel?'rgba(45,106,16,.3)':'rgba(255,193,7,.22)')+'" data-hk="'+selKey+'" data-dia="'+dia+'" data-hora="'+hora+'" title="Já tem '+qtd+' aluna(s) neste horário"><span style="font-size:8px;color:#7a5200;pointer-events:none;font-weight:700">'+(sel?'✓':'+'+qtd)+'</span></td>';
       } else {
         tbl+='<td style="padding:1px;border:1px solid rgba(121,20,40,.07);text-align:center;cursor:pointer;background:'+(sel?'rgba(45,106,16,.3)':'rgba(45,106,16,.05)')+'" data-hk="'+selKey+'" data-dia="'+dia+'" data-hora="'+hora+'"><span style="font-size:8px;color:#2d6a10;pointer-events:none">'+(sel?'✓':hora)+'</span></td>';
       }
@@ -2280,14 +2326,23 @@ function salvarAluna(){
     _horariosSelec.forEach(function(hk){
       var p1=hk.indexOf('_');var p2=hk.indexOf('_',p1+1);
       var tId=hk.slice(0,p1);var dia=hk.slice(p1+1,p2);var hora=hk.slice(p2+1);
-      HORARIOS[tId+'_'+dia+'_'+hora]={tipo:'fixo',alunoId:newId,teacherId:tId,obs:''};
+      var kSlot=tId+'_'+dia+'_'+hora;
+      var ex=HORARIOS[kSlot];
+      if(ex&&ex.tipo!=='bloqueado'&&slotAlunoIds(ex).length>0&&tipoCompartilha(tipo)){
+        var ids=slotAlunoIds(ex);
+        if(ids.indexOf(newId)===-1) ids.push(newId);
+        ex.alunoId=ids.join(',');
+        if(!ex.teacherId) ex.teacherId=tId;
+      } else {
+        HORARIOS[kSlot]={tipo:'fixo',alunoId:newId,teacherId:tId,obs:''};
+      }
     });
     _horariosSelec=[];
   }
   // Salvar horários no Supabase
   Object.keys(HORARIOS).forEach(function(k){
     var sl=HORARIOS[k];
-    if(sl.alunoId===newId) salvarHorarioDB(k,sl);
+    if(slotTemAluno(sl,newId)) salvarHorarioDB(k,sl);
   });
   // Se dupla, criar 2º aluno com valor dividido
   if(tipo==='dupla'){
@@ -2319,8 +2374,7 @@ function openEditAluna(id){
   window._editingAlunaId=id;
   var al=ALUNOS.find(function(a){return a.id===id;});
   if(!al) return;
-  var tOpts=TEACHERS.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');})
-    .map(function(t){return '<option value="'+t.id+'"'+(t.id===al.teacherId?' selected':'')+'>'+t.nome+'</option>';}).join('');
+  var tOpts=optsTeachers(al.teacherId);
   var nOpts=NIVEIS.map(function(n){return '<option value="'+n+'"'+(n===al.nivel?' selected':'')+'>'+n+'</option>';}).join('');
   var vOpts=VENC.map(function(d){return '<option value="'+d+'"'+(d===al.venc?' selected':'')+'>Dia '+d+'</option>';}).join('');
   var temFicha=!!al.fichaUrl;
@@ -2442,7 +2496,7 @@ var _horarioTeacherId=null;
 
 function renderHorarios(c,a){
   if(S.perfil==='teacher'&&S.teacherId) _horarioTeacherId=S.teacherId;
-  if(!_horarioTeacherId&&TEACHERS.length) _horarioTeacherId=TEACHERS[0].id;
+  if(!_horarioTeacherId&&teachersAtivas().length) _horarioTeacherId=teachersAtivas()[0].id;
   if(S.perfil!=='teacher')
     a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openAddSlot()"><i class="ti ti-plus"></i> Adicionar horário</button>';
   else
@@ -2462,7 +2516,7 @@ function renderHorarios(c,a){
   var tabsHtml='';
   if(S.perfil!=='teacher'){
     tabsHtml='<div id="hor-tabs" style="display:flex;border-bottom:2px solid rgba(121,20,40,.1);margin-bottom:14px;overflow-x:auto;flex-wrap:nowrap">'
-      +TEACHERS.map(function(t){
+      +teachersAtivas().map(function(t){
         var ativo=t.id===_horarioTeacherId;
         return '<div data-tid="'+t.id+'" style="padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid '+(ativo?'var(--cr)':'transparent')+';color:'+(ativo?'var(--cr)':'var(--crose)')+';margin-bottom:-2px;transition:all .15s">'+t.nome+'</div>';
       }).join('')+'</div>';
@@ -2481,9 +2535,14 @@ function renderHorarios(c,a){
       var key=(_horarioTeacherId||'')+'_'+ds+'_'+hora;
       var sl=HORARIOS[key];
       if(sl){
-        var al=ALUNOS.find(function(x){return x.id===sl.alunoId;});
-        var nm=al?al.nome.split(' ')[0]:'—';
-        tbl+='<td><div class="slot '+sl.tipo+'" data-slotkey="'+key+'"><div class="slot-nome">'+nm+'</div><div class="slot-tipo">'+tiposLabel[sl.tipo]+'</div></div></td>';
+        var idsSl=slotAlunoIds(sl);
+        var nomesSl=idsSl.map(function(aid){
+          var a=ALUNOS.find(function(x){return x.id===aid;});
+          return a?a.nome.split(' ')[0]:null;
+        }).filter(Boolean);
+        var nm=nomesSl.length?(nomesSl.length>2?nomesSl[0]+' +'+(nomesSl.length-1):nomesSl.join(', ')):'—';
+        var lbl=tiposLabel[sl.tipo]+(nomesSl.length>1?' · '+nomesSl.length+' alunas':'');
+        tbl+='<td><div class="slot '+sl.tipo+'" data-slotkey="'+key+'" title="'+nomesSl.join(', ')+'"><div class="slot-nome">'+nm+'</div><div class="slot-tipo">'+lbl+'</div></div></td>';
       } else {
         tbl+='<td><div class="slot" data-slotdate="'+ds+'" data-slothora="'+hora+'"></div></td>';
       }
@@ -2512,14 +2571,14 @@ function renderHorarios(c,a){
 }
 
 function openAddSlot(data,hora){
-  var teacherAtual=TEACHERS.find(function(t){return t.id===_horarioTeacherId;})||TEACHERS[0];
+  var teacherAtual=TEACHERS.find(function(t){return t.id===_horarioTeacherId;})||teachersAtivas()[0];
   var horaOpts='';for(var h=7;h<=23;h++){var hh=String(h).padStart(2,'0')+':00';horaOpts+='<option value="'+hh+'"'+(hh===hora?' selected':'')+'>'+hh+'</option>';}
   var alunosDaTeacher=_horarioTeacherId?byName(ALUNOS.filter(function(a){return a.teacherId===_horarioTeacherId;})):byName(ALUNOS);
   openModal('<div class="mhdr"><h2>Horário — '+(teacherAtual?teacherAtual.nome:'')+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fgrid"><div class="fg"><label>Data</label><input type="date" id="hs-data" value="'+(data||new Date().toISOString().split('T')[0])+'"></div>'
     +'<div class="fg"><label>Horário</label><select id="hs-hora">'+horaOpts+'</select></div></div>'
     +'<div class="fgrid"><div class="fg"><label>Tipo</label><select id="hs-tipo"><option value="fixo">Fixo</option><option value="flexivel">Flexível</option><option value="reposicao">Reposição</option><option value="bloqueado">Bloqueado</option></select></div>'
-    +'<div class="fg"><label>Aluna</label><select id="hs-aluno"><option value="">— Nenhuma —</option>'+alunosDaTeacher.map(function(al){return '<option value="'+al.id+'">'+al.nome+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="fg"><label>Alunas <span style="font-weight:400;color:var(--crose)">(segure Cmd ou Ctrl para marcar mais de uma)</span></label><select id="hs-aluno" multiple size="5">'+alunosDaTeacher.map(function(al){return '<option value="'+al.id+'">'+al.nome+'</option>';}).join('')+'</select></div></div>'
     +'<div class="fg"><label>Observações</label><input id="hs-obs" placeholder="Obs..."></div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="salvarSlot()">Salvar</button></div>');
@@ -2534,20 +2593,26 @@ function openEditSlot(key){
   openModal('<div class="mhdr"><h2>Editar horário</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div style="font-size:12px;color:var(--crose);margin-bottom:12px">'+fmtDateBr(p[1])+' às '+p[2]+'</div>'
     +'<div class="fgrid"><div class="fg"><label>Tipo</label><select id="hs-tipo"><option value="fixo"'+(tipo==='fixo'?' selected':'')+'>Fixo</option><option value="flexivel"'+(tipo==='flexivel'?' selected':'')+'>Flexível</option><option value="reposicao"'+(tipo==='reposicao'?' selected':'')+'>Reposição</option><option value="bloqueado"'+(tipo==='bloqueado'?' selected':'')+'>Bloqueado</option></select></div>'
-    +'<div class="fg"><label>Aluna</label><select id="hs-aluno"><option value="">— Nenhuma —</option>'+alunosDaTeacher.map(function(al){return '<option value="'+al.id+'"'+(al.id===sl.alunoId?' selected':'')+'>'+al.nome+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="fg"><label>Alunas <span style="font-weight:400;color:var(--crose)">(segure Cmd ou Ctrl para marcar mais de uma)</span></label><select id="hs-aluno" multiple size="5">'+alunosDaTeacher.map(function(al){return '<option value="'+al.id+'"'+(slotTemAluno(sl,al.id)?' selected':'')+'>'+al.nome+'</option>';}).join('')+'</select></div></div>'
     +'<div class="fg"><label>Observações</label><input id="hs-obs" value="'+(sl.obs||'')+'"></div>'
     +'<div class="mftr"><button class="btn btn-ghost" style="color:var(--crose)" onclick="excluirSlot()"><i class="ti ti-trash"></i> Excluir</button>'
     +'<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="atualizarSlot()">Salvar</button></div>');
 }
 
+function lerAlunasSlot(){
+  var s=document.getElementById('hs-aluno');
+  if(!s) return '';
+  return Array.prototype.slice.call(s.options).filter(function(o){return o.selected&&o.value;})
+    .map(function(o){return o.value;}).join(',');
+}
 function salvarSlot(){
   var data=document.getElementById('hs-data').value;
   var hora=document.getElementById('hs-hora').value;
   if(!data){showToast('Selecione a data.');return;}
   var key=(_horarioTeacherId||'')+'_'+data+'_'+hora;
   var newSlot={tipo:document.getElementById('hs-tipo').value,
-    alunoId:document.getElementById('hs-aluno').value,
+    alunoId:lerAlunasSlot(),
     teacherId:_horarioTeacherId||'',
     obs:document.getElementById('hs-obs').value};
   HORARIOS[key]=newSlot;
@@ -2560,7 +2625,7 @@ function atualizarSlot(){
   var key=window._editSlotKey;
   if(!key||!HORARIOS[key]) return;
   HORARIOS[key].tipo=document.getElementById('hs-tipo').value;
-  HORARIOS[key].alunoId=document.getElementById('hs-aluno').value;
+  HORARIOS[key].alunoId=lerAlunasSlot();
   HORARIOS[key].obs=document.getElementById('hs-obs').value;
   salvarHorarioDB(key,HORARIOS[key]);
   closeModal();showToast('Horário atualizado! ✅');
@@ -2705,8 +2770,7 @@ function matricularLead(id){
   closeModal();
   // Abrir cadastro de aluna com dados do lead pré-preenchidos
   _horariosSelec=[];
-  var tOpts=TEACHERS.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');})
-    .map(function(t){return '<option value="'+t.id+'">'+t.nome+'</option>';}).join('');
+  var tOpts=optsTeachers(null);
   var vOpts=VENC.map(function(d){return '<option value="'+d+'">Dia '+d+'</option>';}).join('');
   var html='<div class="mhdr"><h2>Matricular — '+l.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fst">Dados pessoais</div>'
@@ -2783,9 +2847,13 @@ function renderAulas(c,a){
   var teacherOpts='';
   if(S.perfil!=='teacher'){
     teacherOpts='<option value="">Todas as teachers</option>'
-      +TEACHERS.map(function(t){
+      +TEACHERS.slice().sort(function(a,b){
+          if((a.ativo===false)!==(b.ativo===false)) return (a.ativo===false)?1:-1;
+          return a.nome.localeCompare(b.nome,'pt');
+        }).map(function(t){
         var tUUID=_teacherIdMap[t.id]||t.id;
-        return '<option value="'+tUUID+'"'+((tUUID===_aulasFiltroTeacher||t.id===_aulasFiltroTeacher)?' selected':'')+'>'+t.nome+'</option>';
+        var tag=(t.ativo===false)?' (ex-teacher)':'';
+        return '<option value="'+tUUID+'"'+((tUUID===_aulasFiltroTeacher||t.id===_aulasFiltroTeacher)?' selected':'')+'>'+t.nome+tag+'</option>';
       }).join('');
   }
 
@@ -3190,9 +3258,8 @@ function uploadNF(event,alunaId){
 // TEACHERS / REUNIÕES / EXTRAS / METAS
 // ══════════════════════════════════════════════════════
 function renderTeachers(c,a){
-  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Teachers — clique para ver alunos e histórico</h3></div>'
-    +'<table class="tbl"><tr><th>Nome</th><th>Alunos</th><th>Aulas este mês</th><th>Retenção</th><th></th></tr>'
-    +TEACHERS.map(function(t){
+  function linhasTeachers(lista){
+    return lista.map(function(t){
       var tUUID=_teacherIdMap[t.id]||t.id;
       var alunos=ALUNOS.filter(function(a){return a.teacherId===t.id||a.teacherId===tUUID;});
       var hoje=new Date();
@@ -3205,10 +3272,23 @@ function renderTeachers(c,a){
         +'<td class="nm" style="color:var(--cr)">'+t.nome+' <i class="ti ti-chevron-right" style="font-size:11px"></i></td>'
         +'<td>'+alunos.length+'</td>'
         +'<td>'+aulasMes+'</td>'
-        +'<td>'+t.retencao+'%</td>'
+        +'<td>'+(t.retencao!==undefined?t.retencao+'%':'—')+'</td>'
         +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirPerfilTeacher(\''+t.id+'\')"><i class="ti ti-eye"></i> Ver</button></td>'
         +'</tr>';
-    }).join('')+'</table></div>';
+    }).join('');
+  }
+  var ativas=byName(teachersAtivas());
+  var inativas=byName(TEACHERS.filter(function(t){return t.ativo===false;}));
+  var html='<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Teachers — clique para ver alunos e histórico</h3></div>'
+    +'<table class="tbl"><tr><th>Nome</th><th>Alunos</th><th>Aulas este mês</th><th>Retenção</th><th></th></tr>'
+    +linhasTeachers(ativas)+'</table></div>';
+  if(inativas.length){
+    html+='<div class="card" style="margin-top:14px"><div class="ch"><i class="ti ti-archive"></i><h3>Ex-teachers — histórico preservado</h3></div>'
+      +'<div style="font-size:12px;color:var(--crose);padding:0 16px 10px">Não aparecem em cadastros nem em novos horários, mas todas as aulas, fichas e registros delas continuam salvos. Clique para consultar.</div>'
+      +'<table class="tbl"><tr><th>Nome</th><th>Alunos</th><th>Aulas este mês</th><th>Retenção</th><th></th></tr>'
+      +linhasTeachers(inativas)+'</table></div>';
+  }
+  c.innerHTML=html;
 }
 
 function abrirPerfilTeacher(teacherLocalId){
@@ -3318,7 +3398,7 @@ function renderReunioes(c,a){
 }
 
 function mNovaReuniao(){
-  var tOpts=TEACHERS.map(function(t){return '<option value="'+t.id+'">'+t.nome+'</option>';}).join('');
+  var tOpts=optsTeachers(null);
   return '<div class="mhdr"><h2>Nova reunião</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fgrid"><div class="fg"><label>Teacher</label><select id="re-teacher">'+tOpts+'</select></div>'
     +'<div class="fg"><label>Data</label><input type="date" id="re-data" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
@@ -3569,7 +3649,7 @@ function renderAluDash(c){
   var mv=motiv();
   var teacher=getTeacher(al.teacherId);
   // Horários da aluna
-  var horariosAluna=Object.keys(HORARIOS).filter(function(k){return HORARIOS[k].alunoId===al.id;});
+  var horariosAluna=Object.keys(HORARIOS).filter(function(k){return slotTemAluno(HORARIOS[k],al.id);});
   var horariosHtml='';
   if(horariosAluna.length){
     horariosHtml='<div class="card" style="margin-bottom:14px"><div class="ch"><i class="ti ti-calendar-time"></i><h3>Meus horários de aula</h3></div>'
@@ -3902,7 +3982,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v22.jul.A';
+var BUILD_VERSAO='v08.ago.A';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
