@@ -509,7 +509,12 @@ async function carregarDados(){
         HORARIOS={};
         rHor.data.forEach(function(r){
           var key=r.id||(r.teacher_id+'_'+r.data+'_'+r.hora);
-          HORARIOS[key]={tipo:r.tipo||'fixo',alunoId:r.aluno_id||'',teacherId:r.teacher_id||'',obs:r.obs||''};
+          // teacher_id vem como UUID do banco; converter de volta para o id local (t0,t1...)
+          // para bater com o restante do app (ex: filtro de alunas no editar horário)
+          var localTid=Object.keys(_teacherIdMap).find(function(k){
+            return _teacherIdMap[k]===r.teacher_id && k!==r.teacher_id;
+          });
+          HORARIOS[key]={tipo:r.tipo||'fixo',alunoId:r.aluno_id||'',teacherId:localTid||r.teacher_id||'',obs:r.obs||''};
         });
       }
     }catch(e){console.warn('Erro carregar horários:',e);}
@@ -517,6 +522,7 @@ async function carregarDados(){
     // Carregar despesas e livros
     await carregarDespesasDB();
     await carregarLivrosDB();
+    await carregarJogosDB();
     await carregarModulosExtrasDB();
     virarMesFinanceiro();
   }catch(e){ console.warn('Supabase offline:',e); }
@@ -665,11 +671,15 @@ async function salvarHorarioDB(key, slot){
   var p1=key.indexOf('_');var p2=key.indexOf('_',p1+1);
   var tId=key.slice(0,p1);var dia=key.slice(p1+1,p2);var hora=key.slice(p2+1);
   try{
-    await sb.from('horarios').upsert({
-      id:key,teacher_id:tId,aluno_id:slot.alunoId||null,
+    // IMPORTANTE: teacher_id no banco é UUID — precisa resolver do id local (t0,t1...) antes de salvar,
+    // senão o upsert falha silenciosamente e o horário "desaparece" ao recarregar a página.
+    var tUUID=await resolveTeacherId(tId)||null;
+    var r=await sb.from('horarios').upsert({
+      id:key,teacher_id:tUUID,aluno_id:slot.alunoId||null,
       data:dia,hora:hora,tipo:slot.tipo||'fixo',obs:slot.obs||''
     });
-  }catch(e){console.warn('Erro salvar horário:',e);}
+    if(r.error){ console.warn('Erro salvar horário:',r.error.message); showToast('⚠️ Horário NÃO salvou no banco: '+r.error.message); }
+  }catch(e){console.warn('Erro salvar horário:',e);showToast('⚠️ Horário NÃO salvou no banco.');}
 }
 async function excluirHoriarioDB(key){
   if(!sb) return;
@@ -928,6 +938,7 @@ var NAVS={
     {id:'reunioes',l:'Reuniões',ic:'ti-calendar-event'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
+    {id:'jogos',l:'Jogos',ic:'ti-device-gamepad-2'},
     {s:'Relatórios'},{id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
     {s:'Financeiro'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
@@ -946,6 +957,7 @@ var NAVS={
     {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
     {id:'retencao',l:'Alunos em Risco',ic:'ti-alert-circle'},
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
+    {id:'jogos',l:'Jogos',ic:'ti-device-gamepad-2'},
     {s:'Agenda'},{id:'horarios',l:'Grade de Horários',ic:'ti-calendar-time'},
     {s:'Equipe'},{id:'teachers',l:'Teachers',ic:'ti-school'},
     {id:'reunioes',l:'Reuniões',ic:'ti-calendar-event'},
@@ -978,6 +990,7 @@ var NAVS={
     {s:'Materiais'},
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
+    {id:'jogos',l:'Jogos',ic:'ti-device-gamepad-2'},
   ],
 };
 
@@ -985,7 +998,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros'};
+  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos'};
 
 function buildNav(){
   document.body.classList.toggle('pf-gestao',S.perfil==='gestao');
@@ -1029,7 +1042,7 @@ function goPage(id){
     extras:renderExtras,reunioes:renderReunioes,tarefas:renderTarefas,
     notas:renderNotas,horarios:renderHorarios,
     relatorios:renderRelatorios,
-    livros:renderLivros,
+    livros:renderLivros,jogos:renderJogos,
     suporte:renderSuporte,cobranca:renderCobranca,experiencia:renderExperiencia,
     emitir:renderEmitirRelatorio,'relatorios-rec':renderRelatoriosRecebidos,
   };
@@ -1079,6 +1092,7 @@ function calcCustoMesTeacher(teacherId, mes, ano){
 // ── FLUXO DE CAIXA / DESPESAS ────────────────────────────
 var DESPESAS = [];
 var LIVROS = []; // {id, titulo, nivel, link, liberadoPara:[alunoId,...], addedBy}
+var JOGOS = []; // {id, titulo, nivel, html, liberadoPara:[alunoId,...], addedBy}
 
 function salvarDespesasDB(){
   if(!sb) return;
@@ -3314,12 +3328,15 @@ function abrirPerfilTeacher(teacherLocalId){
     +'<div class="sc warn"><div class="sl">Custo previsto</div><div class="sv">R$ '+custoMes.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
     +'</div>'
     // Lista de alunos clicáveis
-    +'<div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:8px">👩‍🎓 Alunos (clique para ver histórico)</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--cr)">👩‍🎓 Alunos (clique para ver histórico)</div>'
+    +'<button class="btn btn-primary btn-sm" onclick="openAtribuirAluno(\''+teacherLocalId+'\')"><i class="ti ti-user-plus"></i> Adicionar aluno</button>'
+    +'</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'
-    +alunos.map(function(al){
+    +(alunos.length?alunos.map(function(al){
       return '<button class="btn btn-ghost btn-sm" style="border:1px solid rgba(121,20,40,.2)" '
         +'onclick="closeModal();abrirPerfilAlunoCoord(\''+al.id+'\')">'+al.nome+'</button>';
-    }).join('')
+    }).join(''):'<div style="font-size:12px;color:var(--crose)">Nenhuma aluna atribuída ainda.</div>')
     +'</div>'
     // Histórico recente
     +'<div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:8px">📖 Histórico recente</div>'
@@ -3333,6 +3350,51 @@ function abrirPerfilTeacher(teacherLocalId){
       :'<div style="text-align:center;padding:20px;color:var(--crose);font-size:12px">Nenhuma aula este mês.</div>')
     +'</div>';
   openModal(html);
+}
+
+// Lista todas as alunas (com busca) para atribuir rapidamente a uma teacher
+function openAtribuirAluno(teacherLocalId){
+  var t=TEACHERS.find(function(x){return x.id===teacherLocalId;});
+  if(!t) return;
+  window._atribuirTeacherId=teacherLocalId;
+  var html='<div class="mhdr"><h2>Adicionar aluno — '+t.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="padding:0 20px 20px">'
+    +'<input id="atrib-busca" placeholder="Buscar aluna..." style="width:100%;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1.5px solid rgba(121,20,40,.15);font-size:13px" oninput="renderListaAtribuirAluno()">'
+    +'<div id="atrib-lista" style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto"></div>'
+    +'</div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>';
+  openModal(html);
+  renderListaAtribuirAluno();
+  setTimeout(function(){var i=document.getElementById('atrib-busca');if(i)i.focus();},50);
+}
+
+function renderListaAtribuirAluno(){
+  var div=document.getElementById('atrib-lista');
+  if(!div) return;
+  var teacherLocalId=window._atribuirTeacherId;
+  var busca=normalizarNome((document.getElementById('atrib-busca')||{value:''}).value);
+  var lista=byName(ALUNOS).filter(function(al){return !busca||normalizarNome(al.nome).indexOf(busca)!==-1;});
+  div.innerHTML=lista.length?lista.map(function(al){
+    var jaE=al.teacherId===teacherLocalId;
+    var teacherAtual=getTeacher(al.teacherId).nome||'—';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(121,20,40,.03)">'
+      +'<div><div style="font-size:13px;font-weight:600;color:var(--cd)">'+al.nome+'</div>'
+      +'<div style="font-size:11px;color:var(--crose)">Teacher atual: '+teacherAtual+'</div></div>'
+      +(jaE?'<span style="font-size:11px;color:var(--cr);font-weight:700">✓ Já é desta teacher</span>'
+           :'<button class="btn btn-primary btn-sm" onclick="atribuirAlunoATeacher(\''+al.id+'\')">Atribuir</button>')
+      +'</div>';
+  }).join(''):'<div style="text-align:center;padding:20px;color:var(--crose);font-size:12px">Nenhuma aluna encontrada.</div>';
+}
+
+async function atribuirAlunoATeacher(alunoId){
+  var al=ALUNOS.find(function(a){return a.id===alunoId;});
+  var teacherLocalId=window._atribuirTeacherId;
+  if(!al||!teacherLocalId) return;
+  al.teacherId=teacherLocalId;
+  await salvarAlunaDB(al);
+  showToast('Aluna atribuída! ✅');
+  renderListaAtribuirAluno();
+  if(S.page==='teachers') renderTeachers(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
 function abrirPerfilAlunoCoord(alunoId){
@@ -3623,6 +3685,7 @@ function renderAluTabs(){
   var temPlano=al&&al.planoHtml;
   var tabs=[{id:'dashboard',l:'🏠 Início'},{id:'minhas-aulas',l:'📖 Minhas Aulas'},
     {id:'progresso',l:'📊 Progresso'},{id:'materiais',l:'📁 Materiais'},
+    {id:'jogos',l:'🎮 Jogos'},
     {id:'extras',l:'🎬 Aulas Extras'},{id:'financeiro',l:'💰 Financeiro'}].concat(temPlano?[{id:'plano',l:'📚 Meu Plano'}]:[]);
   var div=document.getElementById('alu-tabs');
   div.innerHTML='';
@@ -3640,7 +3703,7 @@ function goAluPage(id){
   document.querySelectorAll('.alu-tab').forEach(function(b){b.classList.toggle('active',b.dataset.pg===id);});
   var c=document.getElementById('alu-pc');
   var pages={dashboard:renderAluDash,'minhas-aulas':renderAluAulas,progresso:renderAluProgresso,
-    materiais:renderAluMateriais,extras:renderAluExtras,financeiro:renderAluFinanceiro,plano:renderAluPlano};
+    materiais:renderAluMateriais,jogos:renderAluJogos,extras:renderAluExtras,financeiro:renderAluFinanceiro,plano:renderAluPlano};
   (pages[id]||function(c){c.innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Em breve!</div>';})(c);
 }
 
@@ -3920,6 +3983,149 @@ async function removerLivro(livroId){
   renderLivros(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
+// ── JOGOS ───────────────────────────────────────────────
+async function carregarJogosDB(){
+  if(!sb) return;
+  try{
+    var r=await sb.from('jogos').select('*');
+    if(r.data) JOGOS=r.data.map(function(j){
+      return {id:j.id,titulo:j.titulo,nivel:j.nivel||'',html:j.jogo_html||'',
+        liberadoPara:j.liberado_para||[],addedBy:j.added_by||''};
+    });
+  }catch(e){ console.warn('Jogos: tabela pode não existir ainda',e); }
+}
+
+async function salvarJogoDB(j){
+  if(!sb) return;
+  try{
+    var r=await sb.from('jogos').upsert({
+      id:j.id,titulo:j.titulo,nivel:j.nivel||'',jogo_html:j.html||'',
+      liberado_para:j.liberadoPara||[],added_by:j.addedBy||''
+    },{onConflict:'id'});
+    if(r.error){ console.warn('Erro salvar jogo:',r.error.message); showToast('⚠️ Jogo NÃO salvou no banco: '+r.error.message); }
+  }catch(e){ console.warn('Erro salvarJogoDB:',e); }
+}
+
+function renderJogos(c,a){
+  var podeGerenciar=S.perfil==='gestao'||S.perfil==='pedagogico'||S.perfil==='teacher';
+  if(podeGerenciar){
+    a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openAdicionarJogo()"><i class="ti ti-plus"></i> Adicionar jogo</button>';
+  }
+  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-device-gamepad-2"></i><h3>Jogos</h3></div>'
+    +(JOGOS.length
+      ?'<table class="tbl"><tr><th>Título</th><th>Nível</th><th>Alunos liberados</th><th></th></tr>'
+       +JOGOS.map(function(j){
+         var liberados=j.liberadoPara||[];
+         var nomesLib=liberados.map(function(id){
+           var al=ALUNOS.find(function(a){return a.id===id;});
+           return al?al.nome:'';
+         }).filter(Boolean).join(', ')||'Nenhum';
+         return '<tr>'
+           +'<td class="nm">'+j.titulo+'</td>'
+           +'<td>'+j.nivel+'</td>'
+           +'<td style="font-size:11px;color:var(--crose)">'+nomesLib+'</td>'
+           +'<td style="display:flex;gap:4px">'
+           +'<button class="btn btn-ghost btn-sm" onclick="jogarJogo(\''+j.id+'\')"><i class="ti ti-player-play"></i> Testar</button>'
+           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" onclick="openLiberarJogo(\''+j.id+'\')"><i class="ti ti-user-plus"></i> Liberar</button>':'')
+           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="removerJogo(\''+j.id+'\')"><i class="ti ti-trash"></i></button>':'')
+           +'</td></tr>';
+       }).join('')+'</table>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhum jogo cadastrado ainda.</div>')
+    +'</div>';
+}
+
+function openAdicionarJogo(){
+  var html='<div class="mhdr"><h2>Adicionar jogo</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div class="fg"><label>Título</label><input id="jog-titulo" placeholder="Ex: Caça-palavras — Present Simple"></div>'
+    +'<div class="fg"><label>Nível</label><select id="jog-nivel"><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option></select></div>'
+    +'<div class="fg"><label>Arquivo do jogo (.html)</label>'
+    +'<label class="btn btn-ghost" style="cursor:pointer;display:inline-flex;margin:0"><i class="ti ti-upload"></i> Escolher arquivo HTML'
+    +'<input type="file" accept=".html,text/html" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="lerArquivoJogo(event)"></label>'
+    +'<div id="jog-arquivo-nome" style="font-size:11px;color:var(--crose);margin-top:6px"></div></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="adicionarJogo()">Salvar</button></div>';
+  openModal(html);
+  window._jogoHtmlPendente='';
+}
+
+function lerArquivoJogo(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  if(!f) return;
+  if(f.size>4*1024*1024){showToast('⚠️ Arquivo muito grande (máx. 4 MB).');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    window._jogoHtmlPendente=e.target.result;
+    var nomeEl=document.getElementById('jog-arquivo-nome');
+    if(nomeEl) nomeEl.textContent='✅ '+f.name+' carregado';
+  };
+  reader.readAsText(f,'UTF-8');
+}
+
+async function adicionarJogo(){
+  var titulo=(document.getElementById('jog-titulo')||{value:''}).value.trim();
+  var nivel=(document.getElementById('jog-nivel')||{value:'A1'}).value;
+  var html=window._jogoHtmlPendente||'';
+  if(!titulo||!html){showToast('Preencha o título e escolha o arquivo HTML do jogo.');return;}
+  var j={id:uuid(),titulo:titulo,nivel:nivel,html:html,liberadoPara:[],addedBy:S.userName||''};
+  JOGOS.push(j);
+  await salvarJogoDB(j);
+  showToast('Jogo adicionado! ✅');
+  closeModal();
+  renderJogos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+function openLiberarJogo(jogoId){
+  var j=JOGOS.find(function(x){return x.id===jogoId;});
+  if(!j) return;
+  var meusAlunos=S.perfil==='teacher'
+    ?ALUNOS.filter(function(a){var tid=_teacherIdMap[S.teacherId]||S.teacherId;return a.teacherId===tid||a.teacherId===S.teacherId;})
+    :ALUNOS;
+  var html='<div class="mhdr"><h2>Liberar — '+j.titulo+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="padding:14px 0"><div style="font-size:12px;font-weight:700;color:var(--crose);margin-bottom:10px">Selecione os alunos que terão acesso:</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto">'
+    +byName(meusAlunos).map(function(al){
+      var checked=(j.liberadoPara||[]).includes(al.id);
+      return '<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(121,20,40,.03);cursor:pointer">'
+        +'<input type="checkbox" value="'+al.id+'" '+(checked?'checked':'')+' style="width:15px;height:15px">'
+        +'<span style="font-size:13px;color:var(--cd)">'+al.nome+'</span>'
+        +'<span style="font-size:11px;color:var(--crose);margin-left:auto">'+al.nivel+'</span>'
+        +'</label>';
+    }).join('')
+    +'</div></div>'
+    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="salvarLiberacaoJogo(\''+jogoId+'\')">Salvar</button></div>';
+  openModal(html);
+}
+
+async function salvarLiberacaoJogo(jogoId){
+  var j=JOGOS.find(function(x){return x.id===jogoId;});
+  if(!j) return;
+  var checks=document.querySelectorAll('input[type=checkbox]:not(#na-reposicao)');
+  j.liberadoPara=Array.from(checks).filter(function(c){return c.checked&&c.value!=='on';}).map(function(c){return c.value;});
+  await salvarJogoDB(j);
+  showToast('Acesso atualizado! ✅');
+  closeModal();
+  renderJogos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+async function removerJogo(jogoId){
+  if(!confirm('Remover este jogo?')) return;
+  if(sb){ try{ await sb.from('jogos').delete().eq('id',jogoId); }catch(e){} }
+  JOGOS=JOGOS.filter(function(j){return j.id!==jogoId;});
+  showToast('Jogo removido.');
+  renderJogos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+function jogarJogo(jogoId){
+  var j=JOGOS.find(function(x){return x.id===jogoId;});
+  if(!j) return;
+  var html='<div class="mhdr"><h2>'+j.titulo+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
+    +'<div style="padding:0 20px 20px">'
+    +'<iframe style="width:100%;height:78vh;border:none;border-radius:8px" sandbox="allow-scripts allow-same-origin allow-popups" srcdoc="'+j.html.replace(/"/g,'&quot;')+'"></iframe>'
+    +'</div>';
+  openModal(html);
+}
+
 function renderAluMateriais(c){
   var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
   var meuId=al?al.id:'';
@@ -3936,6 +4142,25 @@ function renderAluMateriais(c){
            +'</div>';
        }).join('')+'</div>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)"><i class="ti ti-book-off" style="font-size:36px;display:block;margin-bottom:8px"></i>Nenhum livro disponível ainda.<br><span style="font-size:11px">Sua teacher irá liberar o material em breve.</span></div>')
+    +'</div>';
+}
+
+function renderAluJogos(c){
+  var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
+  var meuId=al?al.id:'';
+  var meusJogos=JOGOS.filter(function(j){return (j.liberadoPara||[]).includes(meuId);});
+  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-device-gamepad-2"></i><h3>🎮 Jogos</h3></div>'
+    +(meusJogos.length
+      ?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:0 16px 16px">'
+       +meusJogos.map(function(j){
+         return '<div style="background:rgba(121,20,40,.04);border-radius:10px;padding:16px;border:1px solid rgba(121,20,40,.1)">'
+           +'<i class="ti ti-device-gamepad-2" style="font-size:28px;color:var(--cr);display:block;margin-bottom:8px"></i>'
+           +'<div style="font-size:13px;font-weight:700;color:var(--cd);margin-bottom:4px">'+j.titulo+'</div>'
+           +'<div style="font-size:11px;color:var(--crose);margin-bottom:12px">Nível '+j.nivel+'</div>'
+           +'<button class="btn btn-primary btn-sm" style="width:100%" onclick="jogarJogo(\''+j.id+'\')"><i class="ti ti-player-play"></i> Jogar</button>'
+           +'</div>';
+       }).join('')+'</div>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)"><i class="ti ti-mood-empty" style="font-size:36px;display:block;margin-bottom:8px"></i>Nenhum jogo disponível ainda.<br><span style="font-size:11px">Sua teacher irá liberar jogos em breve.</span></div>')
     +'</div>';
 }
 
