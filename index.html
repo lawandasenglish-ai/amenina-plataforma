@@ -476,9 +476,25 @@ async function carregarDados(){
       rTe.data.forEach(function(dbT){
         // Match ignorando acentos e maiúsculas (resolve Nínive vs Nivive vs NINIVE)
         var local=TEACHERS.find(function(t){return normalizarNome(t.nome)===normalizarNome(dbT.nome);});
-        if(local){ _teacherIdMap[local.id]=dbT.id; }
+        if(local){
+          _teacherIdMap[local.id]=dbT.id;
+          // Sincroniza ativo/saída do banco (permite desativar teacher pela tela e persistir)
+          local.ativo=dbT.ativo!==false;
+          local.saidaEm=dbT.saida_em||local.saidaEm||null;
+        } else {
+          // Teacher criada direto pela tela (não existe no array hardcoded) — adiciona à lista local
+          if(!TEACHERS.some(function(t){return t.id===dbT.id;})){
+            TEACHERS.push({id:dbT.id,nome:dbT.nome,email:dbT.email||'',ativo:dbT.ativo!==false,saidaEm:dbT.saida_em||null});
+          }
+        }
         // Também mapear pelo UUID do banco direto (para alunos que já têm UUID)
         _teacherIdMap[dbT.id]=dbT.id;
+      });
+      // Qualquer teacher hardcoded que ainda não existe no banco (ex: nova instalação) é semeada
+      TEACHERS.forEach(function(t){
+        if(!rTe.data.some(function(dbT){return normalizarNome(dbT.nome)===normalizarNome(t.nome);})){
+          salvarTeacherDB(t);
+        }
       });
       console.log('Teachers mapeadas:', _teacherIdMap);
       console.log('Teachers do banco:', rTe.data.map(function(t){return t.nome;}));
@@ -487,6 +503,8 @@ async function carregarDados(){
         for(var i=0;i<TEACHERS.length;i++){ await salvarTeacherDB(TEACHERS[i]); }
       })();
     }
+    // Carregar equipe (logins da equipe) — permite cadastrar/desativar teacher e staff pela tela
+    await carregarEquipeDB();
     // Agora carregar o resto em paralelo
     var [rAl,rLe,rAu,rEx,rRe,rTa]=await Promise.all([
       sb.from('alunos').select('*'),
@@ -549,10 +567,11 @@ function mapAluno(r){
     desconto:r.desconto||0,valorCheio:r.valor_cheio||r.valor||0,
     endereco:r.endereco||'',cidade:r.cidade||'',estado:r.estado||'',pais:r.pais||'Brasil',cep:r.cep||'',
     diasInadimplente:r.dias_inadimplente||0,dataAtraso:r.data_atraso||null,
-    nfUrl:r.nf_url||null,planoHtml:r.plano_html||null,planoProgresso:(function(p){if(!p)return[];if(Array.isArray(p))return p;try{var v=JSON.parse(p);return Array.isArray(v)?v:[];}catch(e){return[];}})(r.plano_progresso),comentarios:[]};
+    nfUrl:r.nf_url||null,planoHtml:r.plano_html||null,planoProgresso:(function(p){if(!p)return[];if(Array.isArray(p))return p;try{var v=JSON.parse(p);return Array.isArray(v)?v:[];}catch(e){return[];}})(r.plano_progresso),
+    avisoCancelamento:r.aviso_cancelamento||false,avisoCancelamentoData:r.aviso_cancelamento_data||null,comentarios:[]};
 }
 function mapTeacher(r){
-  return {id:r.id,nome:r.nome,email:r.email||''};
+  return {id:r.id,nome:r.nome,email:r.email||'',ativo:r.ativo!==false,saidaEm:r.saida_em||null};
 }
 function mapLead(r){
   return {id:r.id,nome:r.nome,email:r.email||'',tel:r.telefone||'',ddi:r.ddi||'+55',
@@ -606,6 +625,7 @@ async function salvarAlunaDB(al){
       tipo:al.tipo||'individual',
       desconto:parseFloat(al.desconto)||0,
       valor_cheio:parseFloat(al.valorCheio)||parseFloat(al.valor)||0,
+      aviso_cancelamento:al.avisoCancelamento||false,aviso_cancelamento_data:al.avisoCancelamentoData||null,
       endereco:al.endereco||null,cidade:al.cidade||null,estado:al.estado||null,pais:al.pais||'Brasil',cep:al.cep||null,
       dias_inadimplente:al.diasInadimplente||0,data_atraso:al.dataAtraso||null,nf_url:al.nfUrl||null,ficha_url:al.fichaUrl||null,
       plano_html:al.planoHtml||null,plano_progresso:JSON.stringify(al.planoProgresso||[]),
@@ -640,7 +660,7 @@ async function resolveTeacherId(localId){
   return null;
 }
 async function salvarTeacherDB(t){
-  if(!sb) return;
+  if(!sb) return null;
   try{
     // Verificar se teacher já existe pelo nome
     var check=await sb.from('teachers').select('id').eq('nome',t.nome).single();
@@ -650,10 +670,52 @@ async function salvarTeacherDB(t){
       return check.data.id;
     }
     // Inserir sem ID (banco gera uuid)
-    var r=await sb.from('teachers').insert({nome:t.nome,email:t.email||''}).select('id').single();
-    if(r.data){ _teacherIdMap[t.id]=r.data.id; console.log('Teacher salva:',t.nome,r.data.id); }
+    var r=await sb.from('teachers').insert({nome:t.nome,email:t.email||'',ativo:t.ativo!==false}).select('id').single();
+    if(r.data){ _teacherIdMap[t.id]=r.data.id; console.log('Teacher salva:',t.nome,r.data.id); return r.data.id; }
     if(r.error) console.warn('Erro salvar teacher:', r.error.message);
   }catch(e){ console.warn('Erro salvarTeacherDB:',e); }
+  return null;
+}
+// Ativa/desativa uma teacher (não apaga — preserva histórico de aulas)
+async function atualizarAtivoTeacherDB(teacherLocalId, ativo, saidaEm){
+  if(!sb) return;
+  try{
+    var tUUID=await resolveTeacherId(teacherLocalId);
+    if(!tUUID) return;
+    var r=await sb.from('teachers').update({ativo:ativo,saida_em:saidaEm||null}).eq('id',tUUID);
+    if(r.error) console.warn('Erro atualizar ativo da teacher:',r.error.message);
+  }catch(e){ console.warn('Erro atualizarAtivoTeacherDB:',e); }
+}
+// ── EQUIPE (logins da gestão/comercial/financeiro/teachers) ──
+async function carregarEquipeDB(){
+  if(!sb) return;
+  try{
+    var r=await sb.from('equipe').select('*');
+    if(r.data&&r.data.length){
+      EQUIPE=r.data.map(function(e){
+        return {id:e.id,nome:e.nome,role:e.role,roleLabel:e.role_label||e.role,
+          usuario:e.usuario,senha:e.senha,avatar:e.avatar||inits(e.nome),
+          teacherId:e.teacher_id||null,duploPerfil:e.duplo_perfil||false,perfilExtra:e.perfil_extra||null};
+      });
+    } else {
+      // Primeira vez: tabela vazia — semear com a equipe atual para não perder os logins existentes
+      for(var i=0;i<EQUIPE.length;i++){ await salvarEquipeDB(EQUIPE[i]); }
+    }
+  }catch(e){ console.warn('Equipe: tabela pode não existir ainda',e); }
+}
+async function salvarEquipeDB(eq){
+  if(!sb) return;
+  try{
+    var r=await sb.from('equipe').upsert({
+      id:eq.id,nome:eq.nome,role:eq.role,role_label:eq.roleLabel,usuario:eq.usuario,senha:eq.senha,
+      avatar:eq.avatar,teacher_id:eq.teacherId||null,duplo_perfil:eq.duploPerfil||false,perfil_extra:eq.perfilExtra||null
+    },{onConflict:'id'});
+    if(r.error) console.warn('Erro salvar equipe:',r.error.message);
+  }catch(e){ console.warn('Erro salvarEquipeDB:',e); }
+}
+async function excluirEquipeDB(id){
+  if(!sb) return;
+  try{ await sb.from('equipe').delete().eq('id',id); }catch(e){}
 }
 async function salvarLeadDB(l){
   if(!sb) return;
@@ -801,6 +863,15 @@ function doLogin(){
   err.style.display='none';
   if(!usuario){err.style.display='block';err.textContent='Digite seu usuário.';return;}
   if(!senha){err.style.display='block';err.textContent='Digite sua senha.';return;}
+
+  // Se os dados da equipe ainda não carregaram do banco (login logo que a página abriu
+  // ou teacher cadastrada há pouco tempo), espera carregar antes de checar o login.
+  if(!_dadosCarregados){
+    err.style.display='block';err.textContent='⏳ Carregando dados, um instante...';
+    garantirDados().then(function(){err.style.display='none';doLogin();})
+      .catch(function(){err.textContent='Erro de conexão. Recarregue a página.';});
+    return;
+  }
 
   if(_perfSel.perfil==='teacher'){
     var eq=EQUIPE.find(function(e){return e.role==='teacher'&&e.usuario===usuario;});
@@ -1513,6 +1584,7 @@ function renderRelExecutivo(rc){
   var ativos=ALUNOS.filter(function(a){return a.status==='Ativo';}).length;
   var desap=ALUNOS.filter(function(a){return a.status==='Desaparecido';}).length;
   var atencao=ALUNOS.filter(function(a){return a.status==='Atenção';}).length;
+  var avisouCancel=ALUNOS.filter(function(a){return a.avisoCancelamento;}).length;
   var mrr=ALUNOS.filter(function(a){return a.status==='Ativo'&&isPagante(a);}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
   var convertidos=LEADS.filter(function(l){return l.etapa==='matriculado';}).length;
   var total=LEADS.length;
@@ -1527,10 +1599,11 @@ function renderRelExecutivo(rc){
     +'<div class="sc"><div class="sl">Conversão comercial</div><div class="sv">'+taxa+'%</div><div style="font-size:11px;color:#666;margin-top:2px">'+convertidos+' de '+total+' leads</div></div>'
     +'<div class="sc warn"><div class="sl">Taxa inadimplência</div><div class="sv">'+taxaInad+'%</div><div style="font-size:11px;color:#666;margin-top:2px">'+inadQtd+' alunos</div></div>'
     +'</div>'
-    +(atencao||desap?'<div class="card" style="border:2px solid #ef4444;margin-bottom:16px"><div class="ch"><i class="ti ti-alert-circle" style="color:#ef4444"></i><h3 style="color:#ef4444">Alertas</h3></div>'
+    +(atencao||desap||avisouCancel?'<div class="card" style="border:2px solid #ef4444;margin-bottom:16px"><div class="ch"><i class="ti ti-alert-circle" style="color:#ef4444"></i><h3 style="color:#ef4444">Alertas</h3></div>'
     +'<div style="padding:8px 16px 16px;display:flex;gap:12px">'
     +(desap?'<div style="background:#fee2e2;border-radius:8px;padding:12px 20px;text-align:center"><div style="font-size:24px;font-weight:700;color:#dc2626">'+desap+'</div><div style="font-size:11px;color:#991b1b">Desaparecidos</div></div>':'')
     +(atencao?'<div style="background:#fef9c3;border-radius:8px;padding:12px 20px;text-align:center"><div style="font-size:24px;font-weight:700;color:#ca8a04">'+atencao+'</div><div style="font-size:11px;color:#854d0e">Merecem atenção</div></div>':'')
+    +(avisouCancel?'<div style="background:#fef3e0;border-radius:8px;padding:12px 20px;text-align:center"><div style="font-size:24px;font-weight:700;color:#b45309">'+avisouCancel+'</div><div style="font-size:11px;color:#7a4f00">Avisaram cancelamento</div></div>':'')
     +'</div></div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
     +'<div class="card"><div class="ch"><i class="ti ti-chart-bar"></i><h3>Alunos por teacher</h3></div><div style="padding:0 16px 16px"><canvas id="chart-exec-teacher" height="240"></canvas></div></div>'
@@ -1719,15 +1792,17 @@ function showToast(msg){
   setTimeout(function(){t.remove();},3000);
 }
 
+var STATUS_LABELS={'Pausado-Inadimplencia':'Pausado (inadimplência)'};
 function bdg(val){
   var map={
     'Pago':'ok','Ativo':'ok','Presente':'ok','Ótimo':'ok','concluido':'ok','Em dia':'ok','Montada':'warn','Cancelada':'warn','Remarcada':'warn',
     'Pendente':'warn','Flexível':'warn','andamento':'warn','Reposição':'warn',
-    'Atrasado':'err','Inativo':'err','Faltou':'err','perdido':'err','bloqueado':'err',
+    'Pausado':'warn','Pausado-Inadimplencia':'warn','Atenção':'warn',
+    'Atrasado':'err','Inativo':'err','Faltou':'err','perdido':'err','bloqueado':'err','Cancelado':'err','Desaparecido':'err',
     'A1':'info','A2':'info','B1':'info','B2':'info','C1':'info','C2':'info',
   };
   var cls=map[val]||'gray';
-  return '<span class="badge badge-'+cls+'">'+val+'</span>';
+  return '<span class="badge badge-'+cls+'">'+(STATUS_LABELS[val]||val)+'</span>';
 }
 function etLbl(e){
   var m={lead:'Lead',contato:'Contato',aula_exp:'Aula Exp.',followup:'Follow-up',matriculado:'Matriculado',perdido:'Perdido'};
@@ -2060,6 +2135,7 @@ function mCadastrarEquipe(){
     +'<option value="teacher">Teacher</option>'
     +'<option value="comercial">Comercial</option>'
     +'<option value="financeiro">Financeiro</option>'
+    +'<option value="pedagogico">Coord. Pedagógica</option>'
     +'</select></div></div>'
     +'<div class="fgrid"><div class="fg"><label>Usuário (login)</label><input id="ce-usuario" placeholder="ex: alice"></div>'
     +'<div class="fg"><label>Senha</label><input type="password" id="ce-senha" placeholder="Senha"></div></div>'
@@ -2067,18 +2143,27 @@ function mCadastrarEquipe(){
     +'<button class="btn btn-primary" onclick="salvarEquipe()">Salvar</button></div>';
 }
 
-function salvarEquipe(){
+async function salvarEquipe(){
   var nome=document.getElementById('ce-nome').value.trim();
   var role=document.getElementById('ce-role').value;
   var usuario=document.getElementById('ce-usuario').value.trim().toLowerCase();
   var senha=document.getElementById('ce-senha').value;
   if(!nome||!usuario||!senha){showToast('Preencha todos os campos.');return;}
-  var labels={teacher:'Teacher',comercial:'Comercial',financeiro:'Financeiro'};
+  if(EQUIPE.some(function(e){return e.usuario===usuario;})){showToast('Já existe um usuário com esse login.');return;}
+  var labels={teacher:'Teacher',comercial:'Comercial',financeiro:'Financeiro',pedagogico:'Coord. Pedagógica'};
   var av=inits(nome);
   var newId='e'+Date.now();
-  var tid=role==='teacher'?'t'+Date.now():null;
-  if(role==='teacher') TEACHERS.push({id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true});
-  EQUIPE.push({id:newId,nome:nome,role:role,roleLabel:labels[role],usuario:usuario,senha:senha,avatar:av,teacherId:tid,duploPerfil:false});
+  var tid=null;
+  if(role==='teacher'){
+    tid=uuid(); // UUID próprio — vira o id real da teacher tanto localmente quanto no Supabase
+    var novaTeacher={id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true};
+    TEACHERS.push(novaTeacher);
+    await sb.from('teachers').upsert({id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true});
+    _teacherIdMap[tid]=tid;
+  }
+  var novoMembro={id:newId,nome:nome,role:role,roleLabel:labels[role],usuario:usuario,senha:senha,avatar:av,teacherId:tid,duploPerfil:false};
+  EQUIPE.push(novoMembro);
+  await salvarEquipeDB(novoMembro);
   closeModal();showToast('Membro adicionado! ✅');
   renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
@@ -2087,21 +2172,42 @@ function openEditEquipe(id){
   var eq=EQUIPE.find(function(e){return e.id===id;});
   if(!eq) return;
   window._editEquipeId=id;
+  var podeDesativar=eq.id!=='e1'&&eq.id!=='e2'; // protege as contas principais (Lawanda/Kessia) de remoção acidental
   openModal('<div class="mhdr"><h2>Editar — '+eq.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fgrid"><div class="fg"><label>Usuário</label><input id="ee-usuario" value="'+eq.usuario+'"></div>'
     +'<div class="fg"><label>Nova senha (vazio = manter)</label><input type="password" id="ee-senha" placeholder="Nova senha"></div></div>'
-    +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<div class="mftr">'
+    +(podeDesativar?'<button class="btn btn-ghost" style="color:var(--crose)" onclick="removerEquipe(\''+eq.id+'\')"><i class="ti ti-user-off"></i> Desativar</button>':'')
+    +'<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="salvarEditEquipe()">Salvar</button></div>');
 }
 
-function salvarEditEquipe(){
+async function salvarEditEquipe(){
   var eq=EQUIPE.find(function(e){return e.id===window._editEquipeId;});
   if(!eq) return;
   var usuario=document.getElementById('ee-usuario').value.trim().toLowerCase();
   var senha=document.getElementById('ee-senha').value;
   if(usuario) eq.usuario=usuario;
   if(senha) eq.senha=senha;
+  await salvarEquipeDB(eq);
   closeModal();showToast('Dados atualizados! ✅');
+  renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+// Desativa o acesso de um membro da equipe. Se for teacher, a teacher fica inativa
+// (histórico de aulas preservado) mas o login é removido para ela não conseguir mais entrar.
+async function removerEquipe(id){
+  var eq=EQUIPE.find(function(e){return e.id===id;});
+  if(!eq) return;
+  if(!confirm('Desativar o acesso de '+eq.nome+'? '+(eq.teacherId?'As aulas já registradas continuam salvas no histórico.':'')+' Esta ação pode ser revertida cadastrando de novo.')) return;
+  if(eq.teacherId){
+    var t=TEACHERS.find(function(x){return x.id===eq.teacherId;});
+    if(t){ t.ativo=false; t.saidaEm=hojeISO().slice(0,7); }
+    await atualizarAtivoTeacherDB(eq.teacherId,false,hojeISO().slice(0,7));
+  }
+  EQUIPE=EQUIPE.filter(function(e){return e.id!==id;});
+  await excluirEquipeDB(id);
+  closeModal();showToast('Acesso desativado.');
   renderUsuarios(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 </script>
@@ -2421,9 +2527,15 @@ function openEditAluna(id){
     +'</select></div>'
     +'<div class="fg"><label>Status</label><select id="ea-status">'
     +'<option value="Ativo"'+(al.status==='Ativo'?' selected':'')+'>Ativo</option>'
-    +'<option value="Inativo"'+(al.status==='Inativo'?' selected':'')+'>Inativo</option>'
-    +'<option value="Pausado"'+(al.status==='Pausado'?' selected':'')+'>Pausado</option>'
+    +'<option value="Pausado"'+(al.status==='Pausado'?' selected':'')+'>Pausado (pausa solicitada)</option>'
+    +'<option value="Pausado-Inadimplencia"'+(al.status==='Pausado-Inadimplencia'?' selected':'')+'>Pausado (inadimplência)</option>'
+    +'<option value="Cancelado"'+(al.status==='Cancelado'?' selected':'')+'>Matrícula cancelada</option>'
+    +'<option value="Desaparecido"'+(al.status==='Desaparecido'?' selected':'')+'>Desaparecido</option>'
     +'</select></div></div>'
+    +'<div class="fgrid"><div class="fg" style="display:flex;align-items:center;gap:8px;padding-top:22px">'
+    +'<input type="checkbox" id="ea-aviso-cancel" style="width:16px;height:16px"'+(al.avisoCancelamento?' checked':'')+'>'
+    +'<label style="margin:0;font-size:12px" for="ea-aviso-cancel">Avisou que este será o último mês</label></div>'
+    +'<div class="fg"><label>Data do aviso</label><input type="date" id="ea-aviso-data" value="'+(al.avisoCancelamentoData||'')+'"></div></div>'
     +'<div class="fst">Financeiro</div>'
     +'<div class="fgrid"><div class="fg"><label>Plano</label><select id="ea-plano">'
     +'<option value="Mensal"'+(al.plano==='Mensal'?' selected':'')+'>Mensal</option>'
@@ -2482,6 +2594,8 @@ function salvarEditAluna(){
   if(g('ea-teacher')) al.teacherId=g('ea-teacher').value;
   if(g('ea-aulas')) al.aulasSemana=parseInt(g('ea-aulas').value)||al.aulasSemana;
   if(g('ea-status')) al.status=g('ea-status').value;
+  if(g('ea-aviso-cancel')) al.avisoCancelamento=g('ea-aviso-cancel').checked;
+  if(g('ea-aviso-data')) al.avisoCancelamentoData=g('ea-aviso-data').value||null;
   if(g('ea-plano')) al.plano=g('ea-plano').value;
   if(g('ea-pais')) al.pais=g('ea-pais').value;
   if(g('ea-endereco')) al.endereco=g('ea-endereco').value;
@@ -3104,7 +3218,15 @@ function renderRetencao(c,a){
     if(al.risco!=='low'&&!m.length)m.push('Risco sinalizado');
     return m.join(' · ');
   }
-  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-heart"></i><h3>Alunas em risco ('+emRisco.length+')</h3></div>'
+  var avisaram=ALUNOS.filter(function(al){return al.avisoCancelamento;})
+    .sort(function(a,b){return (b.avisoCancelamentoData||'').localeCompare(a.avisoCancelamentoData||'');});
+  var avisoHtml=avisaram.length?'<div class="card" style="margin-bottom:14px"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>🔔 Avisaram que vão cancelar ('+avisaram.length+')</h3></div>'
+    +'<table class="tbl"><tr><th>Aluna</th><th>Teacher</th><th>Avisou em</th><th>Status</th></tr>'
+    +avisaram.map(function(al){
+      return '<tr style="background:rgba(245,158,11,.05)"><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td>'
+        +'<td>'+(al.avisoCancelamentoData?fmtDateBr(al.avisoCancelamentoData):'—')+'</td><td>'+bdg(al.status)+'</td></tr>';
+    }).join('')+'</table></div>':'';
+  c.innerHTML=avisoHtml+'<div class="card"><div class="ch"><i class="ti ti-heart"></i><h3>Alunas em risco ('+emRisco.length+')</h3></div>'
     +(emRisco.length?'<table class="tbl"><tr><th>Aluna</th><th>Teacher</th><th>Status</th><th>Freq.</th><th>Financeiro</th><th>Motivo</th></tr>'
       +emRisco.map(function(al){
         var destaque=al.status==='Desaparecido'?' style="background:rgba(239,68,68,.05)"':al.status==='Atenção'?' style="background:rgba(245,158,11,.05)"':'';
@@ -3272,7 +3394,7 @@ function uploadNF(event,alunaId){
 // TEACHERS / REUNIÕES / EXTRAS / METAS
 // ══════════════════════════════════════════════════════
 function renderTeachers(c,a){
-  function linhasTeachers(lista){
+  function linhasTeachers(lista,ativas){
     return lista.map(function(t){
       var tUUID=_teacherIdMap[t.id]||t.id;
       var alunos=ALUNOS.filter(function(a){return a.teacherId===t.id||a.teacherId===tUUID;});
@@ -3287,22 +3409,51 @@ function renderTeachers(c,a){
         +'<td>'+alunos.length+'</td>'
         +'<td>'+aulasMes+'</td>'
         +'<td>'+(t.retencao!==undefined?t.retencao+'%':'—')+'</td>'
-        +'<td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirPerfilTeacher(\''+t.id+'\')"><i class="ti ti-eye"></i> Ver</button></td>'
-        +'</tr>';
+        +'<td style="display:flex;gap:4px">'
+        +'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirPerfilTeacher(\''+t.id+'\')"><i class="ti ti-eye"></i> Ver</button>'
+        +(ativas
+          ?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="event.stopPropagation();desativarTeacher(\''+t.id+'\')"><i class="ti ti-user-off"></i></button>'
+          :'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();reativarTeacher(\''+t.id+'\')"><i class="ti ti-user-check"></i> Reativar</button>')
+        +'</td></tr>';
     }).join('');
   }
   var ativas=byName(teachersAtivas());
   var inativas=byName(TEACHERS.filter(function(t){return t.ativo===false;}));
   var html='<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Teachers — clique para ver alunos e histórico</h3></div>'
     +'<table class="tbl"><tr><th>Nome</th><th>Alunos</th><th>Aulas este mês</th><th>Retenção</th><th></th></tr>'
-    +linhasTeachers(ativas)+'</table></div>';
+    +linhasTeachers(ativas,true)+'</table></div>';
   if(inativas.length){
     html+='<div class="card" style="margin-top:14px"><div class="ch"><i class="ti ti-archive"></i><h3>Ex-teachers — histórico preservado</h3></div>'
       +'<div style="font-size:12px;color:var(--crose);padding:0 16px 10px">Não aparecem em cadastros nem em novos horários, mas todas as aulas, fichas e registros delas continuam salvos. Clique para consultar.</div>'
       +'<table class="tbl"><tr><th>Nome</th><th>Alunos</th><th>Aulas este mês</th><th>Retenção</th><th></th></tr>'
-      +linhasTeachers(inativas)+'</table></div>';
+      +linhasTeachers(inativas,false)+'</table></div>';
   }
   c.innerHTML=html;
+}
+
+async function desativarTeacher(teacherLocalId){
+  var t=TEACHERS.find(function(x){return x.id===teacherLocalId;});
+  if(!t) return;
+  if(teacherLocalId==='t0'||teacherLocalId==='t1'){showToast('Esta conta (Lawanda/Kessia) não pode ser desativada por aqui.');return;}
+  if(!confirm('Desativar '+t.nome+'? Ela some dos cadastros e da grade (histórico de aulas continua salvo) e o login dela deixa de funcionar.')) return;
+  t.ativo=false; t.saidaEm=hojeISO().slice(0,7);
+  await atualizarAtivoTeacherDB(teacherLocalId,false,t.saidaEm);
+  // Remove também o login de equipe correspondente, se houver, pra ela não conseguir mais entrar
+  var tUUID=_teacherIdMap[teacherLocalId]||teacherLocalId;
+  var logins=EQUIPE.filter(function(e){return e.teacherId===teacherLocalId||e.teacherId===tUUID;});
+  for(var i=0;i<logins.length;i++){ await excluirEquipeDB(logins[i].id); }
+  EQUIPE=EQUIPE.filter(function(e){return e.teacherId!==teacherLocalId&&e.teacherId!==tUUID;});
+  showToast('Teacher desativada.');
+  renderTeachers(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+async function reativarTeacher(teacherLocalId){
+  var t=TEACHERS.find(function(x){return x.id===teacherLocalId;});
+  if(!t) return;
+  t.ativo=true; t.saidaEm=null;
+  await atualizarAtivoTeacherDB(teacherLocalId,true,null);
+  showToast('Teacher reativada! ✅');
+  renderTeachers(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
 function abrirPerfilTeacher(teacherLocalId){
@@ -4196,8 +4347,9 @@ var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
 
 // ── Carregar dados na abertura da página (antes de qualquer login) ──
 var _dadosProntos=null;
+var _dadosCarregados=false;
 function garantirDados(){
-  if(!_dadosProntos)_dadosProntos=carregarDados();
+  if(!_dadosProntos)_dadosProntos=carregarDados().then(function(){_dadosCarregados=true;});
   return _dadosProntos;
 }
 if(document.readyState==='loading'){
@@ -4281,7 +4433,7 @@ function abrirFichaAluna(id){
   c.innerHTML=''
   // ── Linha de indicadores ──
   +'<div class="sg g4">'
-  +'<div class="sc"><div class="sl">Status</div><div style="margin-top:6px">'+bdg(al.status)+'</div></div>'
+  +'<div class="sc"><div class="sl">Status</div><div style="margin-top:6px">'+bdg(al.status)+(al.avisoCancelamento?'<div style="font-size:10px;color:#b45309;margin-top:4px;font-weight:700">🔔 Avisou cancelamento'+(al.avisoCancelamentoData?' ('+fmtDateBr(al.avisoCancelamentoData)+')':'')+'</div>':'')+'</div></div>'
   +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'"><div class="sl">Financeiro</div><div style="margin-top:6px">'+bdg(al.fin)+(al.fin==='Atrasado'?'<div style="font-size:10px;color:#991b1b;margin-top:2px">'+(al.diasInadimplente||0)+' dias</div>':'')+'</div></div>'
   +'<div class="sc '+(al.freq<85?'warn':'ok')+'"><div class="sl">Frequência</div><div class="sv">'+al.freq+'%</div></div>'
   +'<div class="sc"><div class="sl">Plano de estudos</div><div class="sv">'+(pctPlano===null?'—':pctPlano+'%')+'</div></div>'
@@ -4304,8 +4456,9 @@ function abrirFichaAluna(id){
   +'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>💰 Financeiro</h3></div>'
   +'<div style="padding:0 16px 16px">'
   +'<div style="font-size:12px;margin-bottom:10px"><b>Pagamentos registrados:</b></div>'
-  +(pgtos.length?'<table class="tbl"><tr><th>Data</th><th>Valor</th></tr>'
-    +pgtos.slice(0,6).map(function(p){return '<tr><td style="font-size:12px">'+fmtDateBr(p.data)+'</td><td style="font-size:12px">R$ '+p.valor+'</td></tr>';}).join('')+'</table>'
+  +(pgtos.length?'<div style="max-height:220px;overflow-y:auto"><table class="tbl"><tr><th>Data</th><th>Valor</th></tr>'
+    +pgtos.map(function(p){return '<tr><td style="font-size:12px">'+fmtDateBr(p.data)+'</td><td style="font-size:12px">R$ '+p.valor+'</td></tr>';}).join('')+'</table></div>'
+    +'<div style="font-size:11px;color:var(--crose);margin-top:4px">'+pgtos.length+' pagamento'+(pgtos.length===1?'':'s')+' registrado'+(pgtos.length===1?'':'s')+'.</div>'
     :'<div style="font-size:12px;color:var(--crose);margin-bottom:10px">Nenhum pagamento registrado (registro começou em jul/2026).</div>')
   +(contatos.length?'<div style="font-size:12px;margin:12px 0 6px"><b>Últimos contatos de cobrança:</b></div>'
     +contatos.slice(0,3).map(function(t){
