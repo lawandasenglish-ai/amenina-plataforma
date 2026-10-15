@@ -526,7 +526,7 @@ async function carregarDados(){
       if(rHor.data&&rHor.data.length){
         HORARIOS={};
         rHor.data.forEach(function(r){
-          var key=r.id||(r.teacher_id+'_'+r.data+'_'+r.hora);
+          var key=r.id||(r.teacher_id+'_'+r.dia_semana+'_'+r.hora);
           // teacher_id vem como UUID do banco; converter de volta para o id local (t0,t1...)
           // para bater com o restante do app (ex: filtro de alunas no editar horário)
           var localTid=Object.keys(_teacherIdMap).find(function(k){
@@ -738,7 +738,7 @@ async function salvarHorarioDB(key, slot){
     var tUUID=await resolveTeacherId(tId)||null;
     var r=await sb.from('horarios').upsert({
       id:key,teacher_id:tUUID,aluno_id:slot.alunoId||null,
-      data:dia,hora:hora,tipo:slot.tipo||'fixo',obs:slot.obs||''
+      dia_semana:dia,hora:hora,tipo:slot.tipo||'fixo',obs:slot.obs||''
     });
     if(r.error){ console.warn('Erro salvar horário:',r.error.message); showToast('⚠️ Horário NÃO salvou no banco: '+r.error.message); }
   }catch(e){console.warn('Erro salvar horário:',e);showToast('⚠️ Horário NÃO salvou no banco.');}
@@ -997,7 +997,8 @@ var NAVS={
     {s:'Visão Geral'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {s:'Usuários'},{id:'usuarios',l:'Gestão de Usuários',ic:'ti-users-group'},
     {s:'Alunos'},{id:'horarios',l:'Grade de Horários',ic:'ti-calendar-time'},
-    {id:'alunos',l:'Alunos',ic:'ti-users',n:function(){return ALUNOS.length;}},
+    {id:'alunos',l:'Alunos',ic:'ti-users',n:function(){return alunosAtivos().length;}},
+    {id:'pausadas',l:'Pausadas/Canceladas',ic:'ti-user-pause',n:function(){return alunosInativas().length;}},
     {id:'retencao',l:'Retenção',ic:'ti-heart'},
     {s:'Comercial'},{id:'crm',l:'CRM / Leads',ic:'ti-target',n:function(){return LEADS.length;}},
     {id:'funil',l:'Funil de Vendas',ic:'ti-filter'},
@@ -1023,6 +1024,7 @@ var NAVS={
   pedagogico:[
     {s:'Pedagógico'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {id:'alunos',l:'Alunos',ic:'ti-users'},
+    {id:'pausadas',l:'Pausadas/Canceladas',ic:'ti-user-pause',n:function(){return alunosInativas().length;}},
     {id:'aulas',l:'Relatórios de Aulas',ic:'ti-book'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
     {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
@@ -1051,11 +1053,13 @@ var NAVS={
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
     {s:'Alunos'},{id:'alunos',l:'Situação Financeira',ic:'ti-users'},
+    {id:'pausadas',l:'Pausadas/Canceladas',ic:'ti-user-pause',n:function(){return alunosInativas().length;}},
   ],
   teacher:[
     {s:'Meus Alunos'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {id:'horarios',l:'Grade de Horários',ic:'ti-calendar-time'},
     {id:'alunos',l:'Meus Alunos',ic:'ti-users'},
+    {id:'pausadas',l:'Pausadas/Canceladas',ic:'ti-user-pause',n:function(){return alunosInativas().length;}},
     {id:'aulas',l:'Registrar Aulas',ic:'ti-book'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
     {s:'Materiais'},
@@ -1069,7 +1073,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos'};
+  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
 
 function buildNav(){
   document.body.classList.toggle('pf-gestao',S.perfil==='gestao');
@@ -1113,7 +1117,7 @@ function goPage(id){
     extras:renderExtras,reunioes:renderReunioes,tarefas:renderTarefas,
     notas:renderNotas,horarios:renderHorarios,
     relatorios:renderRelatorios,
-    livros:renderLivros,jogos:renderJogos,
+    livros:renderLivros,jogos:renderJogos,pausadas:renderPausadasCanceladas,
     suporte:renderSuporte,cobranca:renderCobranca,experiencia:renderExperiencia,
     emitir:renderEmitirRelatorio,'relatorios-rec':renderRelatoriosRecebidos,
   };
@@ -1770,6 +1774,12 @@ function myAlunos(){
   }
   return byName(ALUNOS);
 }
+// Pausada (pedido ou inadimplência) ou matrícula cancelada — ficam fora da lista principal de Alunos
+function statusInativo(status){
+  return status==='Pausado'||status==='Pausado-Inadimplencia'||status==='Cancelado';
+}
+function alunosAtivos(){ return myAlunos().filter(function(a){return !statusInativo(a.status);}); }
+function alunosInativas(){ return myAlunos().filter(function(a){return statusInativo(a.status);}); }
 function fmtDate(d){return d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});}
 function fmtDateBr(iso){if(!iso)return '';try{return new Date(iso+'T12:00').toLocaleDateString('pt-BR');}catch(e){return iso;}}
 function getWeekDates(){
@@ -1777,6 +1787,9 @@ function getWeekDates(){
   var mon=new Date(hoje);mon.setDate(hoje.getDate()-(dow===0?6:dow-1));
   return [0,1,2,3,4].map(function(i){var d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
 }
+// Grade de Horários: recorrente por dia da semana (não por data), pra não precisar recadastrar toda semana.
+var DIAS_SEMANA=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+var DIA_PT={Monday:'Segunda',Tuesday:'Terça',Wednesday:'Quarta',Thursday:'Quinta',Friday:'Sexta',Saturday:'Sábado',Sunday:'Domingo'};
 function openModal(html){
   document.getElementById('mbody').innerHTML=html;
   document.getElementById('mo').classList.remove('hidden');
@@ -1803,6 +1816,21 @@ function bdg(val){
   };
   var cls=map[val]||'gray';
   return '<span class="badge badge-'+cls+'">'+(STATUS_LABELS[val]||val)+'</span>';
+}
+// Badge financeiro "inteligente": mostra pagamento efetuado + data, ou escalona
+// Em atraso (1-5 dias) -> Inadimplente (6+ dias), sem expor o valor que a aluna paga.
+function bdgFin(al){
+  if(al.fin==='Pago'){
+    var ultimoPg=PAGAMENTOS.filter(function(p){return p.alunoId===al.id;})
+      .sort(function(x,y){return (y.data||'').localeCompare(x.data||'');})[0];
+    return '<span class="badge badge-ok">Pagamento efetuado</span>'
+      +(ultimoPg?'<div style="font-size:10px;color:#2d6a10;margin-top:2px">em '+fmtDateBr(ultimoPg.data)+'</div>':'');
+  }
+  if(al.fin==='Atrasado'){
+    if((al.diasInadimplente||0)>5) return '<span class="badge badge-err">Inadimplente</span>';
+    return '<span class="badge badge-warn">Em atraso</span>';
+  }
+  return bdg(al.fin);
 }
 function etLbl(e){
   var m={lead:'Lead',contato:'Contato',aula_exp:'Aula Exp.',followup:'Follow-up',matriculado:'Matriculado',perdido:'Perdido'};
@@ -2012,7 +2040,7 @@ function renderDashboard(c,a){
     var urgAlta=notasPend.filter(function(n){return n.urgencia==='alta';});
     c.innerHTML=welcome
       +'<div class="sg g4">'
-      +'<div class="sc"><div class="sl">Alunas</div><div class="sv">'+ALUNOS.length+'</div><div class="ss">'+teachersAtivas().length+' teachers</div></div>'
+      +'<div class="sc"><div class="sl">Alunas ativas</div><div class="sv">'+alunosAtivos().length+'</div><div class="ss">'+teachersAtivas().length+' teachers</div></div>'
       +'<div class="sc '+(atrasadas.length?'warn':'ok')+'"><div class="sl">Inadimplentes</div><div class="sv">'+atrasadas.length+'</div></div>'
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'<div class="sc '+(urgAlta.length?'warn':'ok')+'"><div class="sl">Notas urgentes</div><div class="sv">'+urgAlta.length+'</div></div>'
@@ -2034,16 +2062,22 @@ function renderDashboard(c,a){
       +'<div class="sc" style="cursor:pointer" data-pg="pagamentos" onclick="goPage(this.dataset.pg)"><div class="sl">Atalho</div><div style="font-size:22px;margin:4px 0">💰</div><div style="font-size:12px;color:var(--cd);font-weight:600">Pagamentos</div></div>'
       +'</div>';
   } else if(S.perfil==='teacher'){
-    var meus=myAlunos();
+    atualizarDiasInadimplente();
+    var meus=alunosAtivos();
+    var meusInad=meus.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);});
     c.innerHTML=welcome
       +'<div class="sg g3">'
-      +'<div class="sc"><div class="sl">Minhas alunas</div><div class="sv">'+meus.length+'</div></div>'
+      +'<div class="sc"><div class="sl">Minhas alunas ativas</div><div class="sv">'+meus.length+'</div></div>'
       +'<div class="sc"><div class="sl">Em risco</div><div class="sv">'+meus.filter(function(a){return a.risco!=='low';}).length+'</div></div>'
       +'<div class="sc"><div class="sl">Aulas hoje</div><div class="sv">'+AULAS.filter(function(r){return r.teacherId===S.teacherId&&r.data===new Date().toISOString().split('T')[0];}).length+'</div></div>'
       +'</div>'
+      +(meusInad.length?'<div class="card" style="border:2px solid #ef4444;margin-bottom:14px"><div class="ch"><i class="ti ti-alert-triangle" style="color:#ef4444"></i><h3 style="color:#ef4444">⚠️ Pagamento em atraso</h3></div>'
+        +'<table class="tbl"><tr><th>Aluna</th><th>Status</th></tr>'
+        +meusInad.map(function(al){return '<tr style="background:rgba(239,68,68,.05)"><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+bdgFin(al)+'</td></tr>';}).join('')
+        +'</table></div>':'')
       +(meus.length?'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Minhas alunas</h3></div>'
         +'<table class="tbl"><tr><th>Nome</th><th>Nível</th><th>Freq.</th><th>Financeiro</th></tr>'
-        +meus.map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td></tr>';}).join('')
+        +meus.map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td><td>'+al.freq+'%</td><td>'+bdgFin(al)+'</td></tr>';}).join('')
         +'</table></div>':'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna vinculada ainda.</div>');
   } else if(S.perfil==='financeiro'){
     atualizarDiasInadimplente();
@@ -2064,7 +2098,7 @@ function renderDashboard(c,a){
       +'</div>'
       +(vencHoje.length?'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>Vencimentos hoje — Dia '+hoje+'</h3></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Valor</th><th>Status</th><th></th></tr>'
-        +vencHoje.map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+bdg(al.fin)+'</td>'
+        +vencHoje.map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+bdgFin(al)+'</td>'
           +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button></td></tr>';}).join('')
         +'</table></div>':'')
       +(inad.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>Inadimplentes</h3><button class="cha" onclick="goPage(\'inadimplencia\')">Ver todos →</button></div>'
@@ -2076,7 +2110,7 @@ function renderDashboard(c,a){
   } else {
     c.innerHTML=welcome
       +'<div class="sg g3">'
-      +'<div class="sc"><div class="sl">Alunas</div><div class="sv">'+ALUNOS.length+'</div></div>'
+      +'<div class="sc"><div class="sl">Alunas ativas</div><div class="sv">'+alunosAtivos().length+'</div></div>'
       +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length+'</div></div>'
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'</div>'
@@ -2104,7 +2138,7 @@ function renderUsuarios(c,a){
       +byName(ALUNOS).map(function(al){
         return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td style="font-size:11px">'+al.email+'</td>'
           +'<td>'+getTeacher(al.teacherId).nome+'</td><td>'+al.plano+'</td>'
-          +'<td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
+          +'<td>'+bdgFin(al)+'</td><td>'+bdg(al.status)+'</td>'
           +'<td style="display:flex;gap:4px">'
           +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
           +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
@@ -2360,10 +2394,7 @@ function atualizarHorariosDisp(){
 function renderGradeDisp(teacherId,div,aulasSemana){
   var horas=[];for(var h=7;h<=23;h++) horas.push(String(h).padStart(2,'0')+':00');
   var diasNomes=['Seg','Ter','Qua','Qui','Sex'];
-  var hoje=new Date(),dow=hoje.getDay();
-  var mon=new Date(hoje);mon.setDate(hoje.getDate()-(dow===0?6:dow-1));
-  var dias=[];
-  for(var i=0;i<5;i++){var d=new Date(mon);d.setDate(mon.getDate()+i);dias.push(d.toISOString().split('T')[0]);}
+  var dias=['Monday','Tuesday','Wednesday','Thursday','Friday'];
   var tipoSel=(document.getElementById('ca-tipo')||{value:'individual'}).value;
   var compart=tipoCompartilha(tipoSel);
   var ocupados={},bloqueados={};
@@ -2379,7 +2410,7 @@ function renderGradeDisp(teacherId,div,aulasSemana){
   if(compart) info+='<div style="font-size:10px;color:#7a5200;background:rgba(255,193,7,.15);border-radius:6px;padding:4px 6px;margin-bottom:6px">Tipo '+tipoSel.toUpperCase()+': os quadradinhos amarelos já têm aluna, mas podem receber mais uma no mesmo horário.</div>';
   var tbl='<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:9px;width:100%">';
   tbl+='<tr><th style="padding:2px 3px;background:var(--cd);color:var(--ccream);border:1px solid rgba(247,198,211,.1);width:32px">H</th>';
-  diasNomes.forEach(function(n,i){tbl+='<th style="padding:2px 3px;background:var(--cd);color:var(--ccream);border:1px solid rgba(247,198,211,.1)">'+n+'<br><span style="opacity:.6;font-size:8px">'+dias[i].slice(5).replace('-','/')+'</span></th>';});
+  diasNomes.forEach(function(n,i){tbl+='<th style="padding:2px 3px;background:var(--cd);color:var(--ccream);border:1px solid rgba(247,198,211,.1)">'+n+'</th>';});
   tbl+='</tr>';
   horas.forEach(function(hora){
     tbl+='<tr><td style="padding:2px 3px;background:var(--cd);color:var(--cp);font-size:8px;text-align:center;font-weight:700;border:1px solid rgba(247,198,211,.1)">'+hora+'</td>';
@@ -2536,6 +2567,7 @@ function openEditAluna(id){
     +'<input type="checkbox" id="ea-aviso-cancel" style="width:16px;height:16px"'+(al.avisoCancelamento?' checked':'')+'>'
     +'<label style="margin:0;font-size:12px" for="ea-aviso-cancel">Avisou que este será o último mês</label></div>'
     +'<div class="fg"><label>Data do aviso</label><input type="date" id="ea-aviso-data" value="'+(al.avisoCancelamentoData||'')+'"></div></div>'
+    +(S.perfil==='teacher'?'':(''
     +'<div class="fst">Financeiro</div>'
     +'<div class="fgrid"><div class="fg"><label>Plano</label><select id="ea-plano">'
     +'<option value="Mensal"'+(al.plano==='Mensal'?' selected':'')+'>Mensal</option>'
@@ -2550,7 +2582,7 @@ function openEditAluna(id){
     +'<option value="Pago"'+(al.fin==='Pago'?' selected':'')+'>Pago</option>'
     +'<option value="Pendente"'+(al.fin==='Pendente'?' selected':'')+'>Pendente</option>'
     +'<option value="Atrasado"'+(al.fin==='Atrasado'?' selected':'')+'>Atrasado</option>'
-    +'</select></div></div>'
+    +'</select></div></div>'))
     +'</div>'
     +'<div id="epanel-ficha" style="display:none;text-align:center;padding:20px">'
     +(temFicha
@@ -2630,7 +2662,7 @@ function renderHorarios(c,a){
   else
     a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openAddSlot()"><i class="ti ti-plus"></i> Adicionar horário</button>';
 
-  var dias=getWeekDates(),horas=[];for(var h=7;h<=23;h++) horas.push(h);
+  var dias=DIAS_SEMANA,horas=[];for(var h=7;h<=23;h++) horas.push(h);
   var tiposLabel={fixo:'Fixo',flexivel:'Flexível',reposicao:'Reposição',bloqueado:'Bloqueado'};
 
   var leg='<div class="slot-legend">'
@@ -2654,13 +2686,12 @@ function renderHorarios(c,a){
   var header=teacherAtual?'<div style="font-size:14px;font-weight:700;color:var(--cd);margin-bottom:10px">📅 '+teacherAtual.nome+'</div>':'';
 
   var tbl='<div class="schedule-wrap"><table class="schedule-table"><thead><tr><th style="width:55px">Hora</th>'
-    +dias.map(function(d){return '<th>'+fmtDate(d)+'</th>';}).join('')+'</tr></thead><tbody>';
+    +dias.map(function(d){return '<th>'+DIA_PT[d]+'</th>';}).join('')+'</tr></thead><tbody>';
   horas.forEach(function(h){
     var hora=String(h).padStart(2,'0')+':00';
     tbl+='<tr><td class="time-col">'+hora+'</td>';
     dias.forEach(function(d){
-      var ds=d.toISOString().split('T')[0];
-      var key=(_horarioTeacherId||'')+'_'+ds+'_'+hora;
+      var key=(_horarioTeacherId||'')+'_'+d+'_'+hora;
       var sl=HORARIOS[key];
       if(sl){
         var idsSl=slotAlunoIds(sl);
@@ -2672,7 +2703,7 @@ function renderHorarios(c,a){
         var lbl=tiposLabel[sl.tipo]+(nomesSl.length>1?' · '+nomesSl.length+' alunas':'');
         tbl+='<td><div class="slot '+sl.tipo+'" data-slotkey="'+key+'" title="'+nomesSl.join(', ')+'"><div class="slot-nome">'+nm+'</div><div class="slot-tipo">'+lbl+'</div></div></td>';
       } else {
-        tbl+='<td><div class="slot" data-slotdate="'+ds+'" data-slothora="'+hora+'"></div></td>';
+        tbl+='<td><div class="slot" data-slotdia="'+d+'" data-slothora="'+hora+'"></div></td>';
       }
     });
     tbl+='</tr>';
@@ -2692,18 +2723,19 @@ function renderHorarios(c,a){
     c.querySelectorAll('[data-slotkey]').forEach(function(el){
       el.addEventListener('click',function(){openEditSlot(this.dataset.slotkey);});
     });
-    c.querySelectorAll('[data-slotdate]').forEach(function(el){
-      el.addEventListener('click',function(){openAddSlot(this.dataset.slotdate,this.dataset.slothora);});
+    c.querySelectorAll('[data-slotdia]').forEach(function(el){
+      el.addEventListener('click',function(){openAddSlot(this.dataset.slotdia,this.dataset.slothora);});
     });
   },0);
 }
 
-function openAddSlot(data,hora){
+function openAddSlot(dia,hora){
   var teacherAtual=TEACHERS.find(function(t){return t.id===_horarioTeacherId;})||teachersAtivas()[0];
   var horaOpts='';for(var h=7;h<=23;h++){var hh=String(h).padStart(2,'0')+':00';horaOpts+='<option value="'+hh+'"'+(hh===hora?' selected':'')+'>'+hh+'</option>';}
+  var diaOpts=DIAS_SEMANA.map(function(d){return '<option value="'+d+'"'+(d===dia?' selected':'')+'>'+DIA_PT[d]+'</option>';}).join('');
   var alunosDaTeacher=_horarioTeacherId?byName(ALUNOS.filter(function(a){return a.teacherId===_horarioTeacherId;})):byName(ALUNOS);
   openModal('<div class="mhdr"><h2>Horário — '+(teacherAtual?teacherAtual.nome:'')+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
-    +'<div class="fgrid"><div class="fg"><label>Data</label><input type="date" id="hs-data" value="'+(data||new Date().toISOString().split('T')[0])+'"></div>'
+    +'<div class="fgrid"><div class="fg"><label>Dia da semana</label><select id="hs-dia">'+diaOpts+'</select></div>'
     +'<div class="fg"><label>Horário</label><select id="hs-hora">'+horaOpts+'</select></div></div>'
     +'<div class="fgrid"><div class="fg"><label>Tipo</label><select id="hs-tipo"><option value="fixo">Fixo</option><option value="flexivel">Flexível</option><option value="reposicao">Reposição</option><option value="bloqueado">Bloqueado</option></select></div>'
     +'<div class="fg"><label>Alunas <span style="font-weight:400;color:var(--crose)">(segure Cmd ou Ctrl para marcar mais de uma)</span></label><select id="hs-aluno" multiple size="5">'+alunosDaTeacher.map(function(al){return '<option value="'+al.id+'">'+al.nome+'</option>';}).join('')+'</select></div></div>'
@@ -2719,7 +2751,7 @@ function openEditSlot(key){
   var tipo=sl.tipo||'fixo';
   var alunosDaTeacher=byName(ALUNOS.filter(function(a){return a.teacherId===sl.teacherId||!sl.teacherId;}));
   openModal('<div class="mhdr"><h2>Editar horário</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
-    +'<div style="font-size:12px;color:var(--crose);margin-bottom:12px">'+fmtDateBr(p[1])+' às '+p[2]+'</div>'
+    +'<div style="font-size:12px;color:var(--crose);margin-bottom:12px">'+(DIA_PT[p[1]]||p[1])+' às '+p[2]+'</div>'
     +'<div class="fgrid"><div class="fg"><label>Tipo</label><select id="hs-tipo"><option value="fixo"'+(tipo==='fixo'?' selected':'')+'>Fixo</option><option value="flexivel"'+(tipo==='flexivel'?' selected':'')+'>Flexível</option><option value="reposicao"'+(tipo==='reposicao'?' selected':'')+'>Reposição</option><option value="bloqueado"'+(tipo==='bloqueado'?' selected':'')+'>Bloqueado</option></select></div>'
     +'<div class="fg"><label>Alunas <span style="font-weight:400;color:var(--crose)">(segure Cmd ou Ctrl para marcar mais de uma)</span></label><select id="hs-aluno" multiple size="5">'+alunosDaTeacher.map(function(al){return '<option value="'+al.id+'"'+(slotTemAluno(sl,al.id)?' selected':'')+'>'+al.nome+'</option>';}).join('')+'</select></div></div>'
     +'<div class="fg"><label>Observações</label><input id="hs-obs" value="'+(sl.obs||'')+'"></div>'
@@ -2735,9 +2767,9 @@ function lerAlunasSlot(){
     .map(function(o){return o.value;}).join(',');
 }
 function salvarSlot(){
-  var data=document.getElementById('hs-data').value;
+  var data=document.getElementById('hs-dia').value;
   var hora=document.getElementById('hs-hora').value;
-  if(!data){showToast('Selecione a data.');return;}
+  if(!data){showToast('Selecione o dia da semana.');return;}
   var key=(_horarioTeacherId||'')+'_'+data+'_'+hora;
   var newSlot={tipo:document.getElementById('hs-tipo').value,
     alunoId:lerAlunasSlot(),
@@ -3168,9 +3200,9 @@ async function salvarAula(){
 // ══════════════════════════════════════════════════════
 function renderAlunos(c,a){
   if(S.perfil==='gestao'||S.perfil==='financeiro'||S.perfil==='pedagogico') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
-  var lista=myAlunos();
+  var lista=alunosAtivos();
   c.innerHTML='<div class="sg g4">'
-    +'<div class="sc"><div class="sl">Total</div><div class="sv">'+lista.length+'</div></div>'
+    +'<div class="sc"><div class="sl">Ativas</div><div class="sv">'+lista.length+'</div></div>'
     +'<div class="sc warn"><div class="sl">Em risco</div><div class="sv">'+lista.filter(function(a){return a.risco!=='low';}).length+'</div></div>'
     +'<div class="sc"><div class="sl">Freq. média</div><div class="sv">'+(lista.length?Math.round(lista.reduce(function(s,a){return s+a.freq;},0)/lista.length):0)+'%</div></div>'
     +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+lista.filter(function(a){return a.fin==='Atrasado';}).length+'</div></div>'
@@ -3178,10 +3210,50 @@ function renderAlunos(c,a){
     +(lista.length?'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Lista de alunas</h3></div>'
       +'<table class="tbl"><tr><th>Nome</th><th>Nível</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th><th>Freq.</th><th>Financeiro</th><th>Status</th><th></th></tr>'
       +lista.map(function(al){
-        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td>'+bdg(al.status)+'</td>'
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdgFin(al)+'</td><td>'+bdg(al.status)+'</td>'
           +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
       }).join('')+'</table></div>'
       :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna cadastrada.</div>');
+}
+
+function renderPausadasCanceladas(c,a){
+  var lista=alunosInativas();
+  var pausaPedido=lista.filter(function(al){return al.status==='Pausado';});
+  var pausaInad=lista.filter(function(al){return al.status==='Pausado-Inadimplencia';});
+  var cancel=lista.filter(function(al){return al.status==='Cancelado';});
+  a.innerHTML='';
+  function tabela(sub,emoji,titulo,vazio){
+    if(!sub.length) return '';
+    return '<div class="card" style="margin-bottom:14px"><div class="ch"><i class="ti ti-user-pause"></i><h3>'+emoji+' '+titulo+' ('+sub.length+')</h3></div>'
+      +'<table class="tbl"><tr><th>Nome</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th>'+(S.perfil!=='teacher'?'<th>Último valor</th>':'')+'<th>Avisou cancelamento</th><th></th></tr>'
+      +byName(sub).map(function(al){
+        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td>'
+          +(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')
+          +'<td>'+al.plano+'</td>'+(S.perfil!=='teacher'?'<td>R$ '+al.valor+'</td>':'')
+          +'<td style="font-size:11px;color:var(--crose)">'+(al.avisoCancelamento?('🔔 '+(al.avisoCancelamentoData?fmtDateBr(al.avisoCancelamentoData):'sim')):'—')+'</td>'
+          +'<td style="display:flex;gap:4px">'
+          +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button>'
+          +'<button class="btn btn-ghost btn-sm" onclick="reativarAluna(\''+al.id+'\')"><i class="ti ti-player-play"></i> Reativar</button>'
+          +'</td></tr>';
+      }).join('')+'</table></div>';
+  }
+  c.innerHTML=(lista.length?''
+    +tabela(pausaInad,'⏸️','Pausadas por inadimplência')
+    +tabela(pausaPedido,'⏸️','Pausadas a pedido')
+    +tabela(cancel,'❌','Matrícula cancelada')
+    :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna pausada ou cancelada. ✅</div>');
+}
+
+async function reativarAluna(id){
+  var al=ALUNOS.find(function(a){return a.id===id;});
+  if(!al) return;
+  if(!confirm('Reativar '+al.nome+'? Ela volta a aparecer na lista de Alunos ativas.')) return;
+  al.status='Ativo';
+  al.avisoCancelamento=false;
+  al.avisoCancelamentoData=null;
+  await salvarAlunaDB(al);
+  showToast('Aluna reativada! ✅');
+  renderPausadasCanceladas(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
 function renderFrequencia(c,a){
@@ -3230,7 +3302,7 @@ function renderRetencao(c,a){
     +(emRisco.length?'<table class="tbl"><tr><th>Aluna</th><th>Teacher</th><th>Status</th><th>Freq.</th><th>Financeiro</th><th>Motivo</th></tr>'
       +emRisco.map(function(al){
         var destaque=al.status==='Desaparecido'?' style="background:rgba(239,68,68,.05)"':al.status==='Atenção'?' style="background:rgba(245,158,11,.05)"':'';
-        return '<tr'+destaque+'><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+bdg(al.status)+'</td><td>'+al.freq+'%</td><td>'+bdg(al.fin)+'</td><td style="font-size:11px;color:var(--crose)">'+motivoRisco(al)+'</td></tr>';
+        return '<tr'+destaque+'><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+getTeacher(al.teacherId).nome+'</td><td>'+bdg(al.status)+'</td><td>'+al.freq+'%</td><td>'+bdgFin(al)+'</td><td style="font-size:11px;color:var(--crose)">'+motivoRisco(al)+'</td></tr>';
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)">✅ Nenhuma aluna em risco!</div>')+'</div>';
 }
@@ -3279,7 +3351,7 @@ function renderPagamentos(soloInadimplentes){
       var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
       tabelaHtml+='<tr>'
         +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+diasBadge+'</td>'
-        +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>Dia '+al.venc+'</td><td>'+bdg(al.fin)+'</td>'
+        +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>Dia '+al.venc+'</td><td>'+bdgFin(al)+'</td>'
         +'<td style="display:flex;gap:4px">'
         +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
         +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
@@ -3324,9 +3396,27 @@ function calcDiasAtraso(dataAtraso){
 }
 // Atualizar dias inadimplente de todos os alunos ao carregar
 function atualizarDiasInadimplente(){
+  var hoje=new Date();
   ALUNOS.forEach(function(al){
     if(al.fin==='Atrasado'&&al.dataAtraso){
       al.diasInadimplente=calcDiasAtraso(al.dataAtraso);
+      return;
+    }
+    // Escalonamento automático: se ninguém marcou "Pago" e já passou do dia de vencimento,
+    // vira "Atrasado" sozinho — não depende mais de alguém clicar em "Atrasar" na tela.
+    if(al.fin==='Pendente'&&al.status==='Ativo'&&isPagante(al)){
+      var venc=parseInt(al.venc)||10;
+      var diasDesdeVenc=hoje.getDate()-venc;
+      if(diasDesdeVenc<0){
+        var diasMesAnterior=new Date(hoje.getFullYear(),hoje.getMonth(),0).getDate();
+        diasDesdeVenc+=diasMesAnterior;
+      }
+      if(diasDesdeVenc>0){
+        al.fin='Atrasado';
+        al.dataAtraso=new Date(hoje.getTime()-diasDesdeVenc*86400000).toISOString().split('T')[0];
+        al.diasInadimplente=diasDesdeVenc;
+        salvarAlunaDB(al);
+      }
     }
   });
 }
@@ -3360,7 +3450,7 @@ function renderNegativacao(c,a){
           +'<td class="nm" data-alid="'+al.id+'">'+al.nome+'<div style="font-size:11px;color:#aaa">'+al.email+'</div></td>'
           +'<td>R$ '+al.valor+'</td><td>Dia '+al.venc+'</td>'
           +'<td><span style="font-weight:700;color:#ef4444">'+al.diasInadimplente+' dias</span></td>'
-          +'<td>'+bdg(al.fin)+'</td></tr>';
+          +'<td>'+bdgFin(al)+'</td></tr>';
       }).join('')+'</table>'
       :'<div style="text-align:center;padding:40px;color:#22c55e">✅ Nenhum aluno para negativação.</div>')+'</div>';
 }
@@ -3577,7 +3667,7 @@ function abrirPerfilAlunoCoord(alunoId){
        +'<div class="sg g3" style="margin-bottom:16px">'
        +'<div class="sc"><div class="sl">Plano</div><div class="sv" style="font-size:14px">'+al.plano+'</div></div>'
        +'<div class="sc"><div class="sl">Mensalidade</div><div class="sv" style="font-size:14px">R$ '+parseFloat(al.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
-       +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'" ><div class="sl">Status fin.</div><div style="margin-top:6px">'+bdg(al.fin)+'</div></div>'
+       +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'" ><div class="sl">Status fin.</div><div style="margin-top:6px">'+bdgFin(al)+'</div></div>'
        +'</div>'
       :'')
     // Histórico de aulas
@@ -3882,7 +3972,7 @@ function renderAluDash(c){
     +'<div class="alu-hero-stats">'
     +'<div><div class="alu-hero-stat-v">'+al.nivel+'</div><div class="alu-hero-stat-l">Nível</div></div>'
     +'<div><div class="alu-hero-stat-v">'+al.freq+'%</div><div class="alu-hero-stat-l">Frequência</div></div>'
-    +'<div><div class="alu-hero-stat-v">'+bdg(al.fin)+'</div><div class="alu-hero-stat-l">Pagamento</div></div>'
+    +'<div><div class="alu-hero-stat-v">'+bdgFin(al)+'</div><div class="alu-hero-stat-l">Pagamento</div></div>'
     +'</div></div>'
     +horariosHtml
     +'<div class="motiv-card"><span class="motiv-emoji">'+mv.emoji+'</span><div class="motiv-txt">"'+mv.txt+'"</div><div class="motiv-sub">'+mv.sub+'</div></div>'
@@ -4334,7 +4424,7 @@ function renderAluFinanceiro(c){
     +'<div class="sg g3">'
     +'<div class="sc"><div class="sl">Plano</div><div class="sv" style="font-size:18px">'+al.plano+'</div></div>'
     +'<div class="sc"><div class="sl">Valor mensal</div><div class="sv" style="font-size:18px">R$ '+al.valor+'</div></div>'
-    +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'"><div class="sl">Status</div><div style="margin-top:6px">'+bdg(al.fin)+'</div></div>'
+    +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'"><div class="sl">Status</div><div style="margin-top:6px">'+bdgFin(al)+'</div></div>'
     +'</div>'
     +'<div style="font-size:12px;color:var(--crose);padding:10px 0">Vencimento: dia '+al.venc+' de cada mês</div></div>';
 }
@@ -4349,7 +4439,7 @@ var SUPORTE=[],COBRANCA=[],EXPERIENCIA=[];
 var _dadosProntos=null;
 var _dadosCarregados=false;
 function garantirDados(){
-  if(!_dadosProntos)_dadosProntos=carregarDados().then(function(){_dadosCarregados=true;});
+  if(!_dadosProntos)_dadosProntos=carregarDados().then(function(){atualizarDiasInadimplente();_dadosCarregados=true;});
   return _dadosProntos;
 }
 if(document.readyState==='loading'){
@@ -4434,7 +4524,7 @@ function abrirFichaAluna(id){
   // ── Linha de indicadores ──
   +'<div class="sg g4">'
   +'<div class="sc"><div class="sl">Status</div><div style="margin-top:6px">'+bdg(al.status)+(al.avisoCancelamento?'<div style="font-size:10px;color:#b45309;margin-top:4px;font-weight:700">🔔 Avisou cancelamento'+(al.avisoCancelamentoData?' ('+fmtDateBr(al.avisoCancelamentoData)+')':'')+'</div>':'')+'</div></div>'
-  +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'"><div class="sl">Financeiro</div><div style="margin-top:6px">'+bdg(al.fin)+(al.fin==='Atrasado'?'<div style="font-size:10px;color:#991b1b;margin-top:2px">'+(al.diasInadimplente||0)+' dias</div>':'')+'</div></div>'
+  +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'"><div class="sl">Financeiro</div><div style="margin-top:6px">'+bdgFin(al)+(al.fin==='Atrasado'?'<div style="font-size:10px;color:#991b1b;margin-top:2px">'+(al.diasInadimplente||0)+' dias</div>':'')+'</div></div>'
   +'<div class="sc '+(al.freq<85?'warn':'ok')+'"><div class="sl">Frequência</div><div class="sv">'+al.freq+'%</div></div>'
   +'<div class="sc"><div class="sl">Plano de estudos</div><div class="sv">'+(pctPlano===null?'—':pctPlano+'%')+'</div></div>'
   +'</div>'
