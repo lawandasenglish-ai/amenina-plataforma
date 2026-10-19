@@ -390,19 +390,20 @@ function uuid(){
 // ATENCAO: NUNCA apague uma teacher desta lista.
 // Quem saiu fica com ativo:false para o historico de aulas continuar
 // aparecendo com o nome certo. Apagar aqui = aulas antigas viram "-".
+// percentual = % do valor pago pelo aluno que a teacher recebe (modelo de repasse por %)
 var TEACHERS=[
-  {id:'t0',nome:'Lawanda',email:'lawanda@amenina.com',ativo:true},
-  {id:'t1',nome:'Kessia',email:'kessia@amenina.com',ativo:true},
-  {id:'t2',nome:'Alice',email:'alice@amenina.com',ativo:true},
-  {id:'t3',nome:'Aline',email:'aline@amenina.com',ativo:false,saidaEm:'2026-08'},
-  {id:'t4',nome:'Nínive',email:'ninive@amenina.com',ativo:false,saidaEm:'2026-08'},
-  {id:'t5',nome:'Bruna',email:'bruna@amenina.com',ativo:false,saidaEm:'2026-08'},
-  {id:'t6',nome:'Islla',email:'islla@amenina.com',ativo:false,saidaEm:'2026-08'},
-  {id:'t7',nome:'Isabella',email:'isabella@amenina.com',ativo:false,saidaEm:'2026-08'},
-  {id:'t8',nome:'Lorrana',email:'lorrana@amenina.com',ativo:true},
-  {id:'t9',nome:'Nayhla',email:'nayhla@amenina.com',ativo:true},
-  {id:'t10',nome:'Heloisa',email:'heloisa@amenina.com',ativo:true},
-  {id:'t11',nome:'Kamilla',email:'kamilla@amenina.com',ativo:true},
+  {id:'t0',nome:'Lawanda',email:'lawanda@amenina.com',ativo:true,percentual:25},
+  {id:'t1',nome:'Kessia',email:'kessia@amenina.com',ativo:true,percentual:30},
+  {id:'t2',nome:'Alice',email:'alice@amenina.com',ativo:true,percentual:30},
+  {id:'t3',nome:'Aline',email:'aline@amenina.com',ativo:false,saidaEm:'2026-08',percentual:25},
+  {id:'t4',nome:'Nínive',email:'ninive@amenina.com',ativo:false,saidaEm:'2026-08',percentual:25},
+  {id:'t5',nome:'Bruna',email:'bruna@amenina.com',ativo:false,saidaEm:'2026-08',percentual:25},
+  {id:'t6',nome:'Islla',email:'islla@amenina.com',ativo:false,saidaEm:'2026-08',percentual:25},
+  {id:'t7',nome:'Isabella',email:'isabella@amenina.com',ativo:false,saidaEm:'2026-08',percentual:25},
+  {id:'t8',nome:'Lorrana',email:'lorrana@amenina.com',ativo:true,percentual:25},
+  {id:'t9',nome:'Nayhla',email:'nayhla@amenina.com',ativo:true,percentual:25},
+  {id:'t10',nome:'Heloisa',email:'heloisa@amenina.com',ativo:true,percentual:25},
+  {id:'t11',nome:'Kamilla',email:'kamilla@amenina.com',ativo:true,percentual:25},
 ];
 
 var EQUIPE=[
@@ -481,10 +482,13 @@ async function carregarDados(){
           // Sincroniza ativo/saída do banco (permite desativar teacher pela tela e persistir)
           local.ativo=dbT.ativo!==false;
           local.saidaEm=dbT.saida_em||local.saidaEm||null;
+          // Sincroniza % de comissão do banco, se já foi definido lá (senão mantém o padrão hardcoded)
+          if(dbT.percentual!==undefined&&dbT.percentual!==null) local.percentual=parseFloat(dbT.percentual);
         } else {
           // Teacher criada direto pela tela (não existe no array hardcoded) — adiciona à lista local
           if(!TEACHERS.some(function(t){return t.id===dbT.id;})){
-            TEACHERS.push({id:dbT.id,nome:dbT.nome,email:dbT.email||'',ativo:dbT.ativo!==false,saidaEm:dbT.saida_em||null});
+            TEACHERS.push({id:dbT.id,nome:dbT.nome,email:dbT.email||'',ativo:dbT.ativo!==false,saidaEm:dbT.saida_em||null,
+              percentual:(dbT.percentual!==undefined&&dbT.percentual!==null)?parseFloat(dbT.percentual):25});
           }
         }
         // Também mapear pelo UUID do banco direto (para alunos que já têm UUID)
@@ -568,10 +572,12 @@ function mapAluno(r){
     endereco:r.endereco||'',cidade:r.cidade||'',estado:r.estado||'',pais:r.pais||'Brasil',cep:r.cep||'',
     diasInadimplente:r.dias_inadimplente||0,dataAtraso:r.data_atraso||null,
     nfUrl:r.nf_url||null,planoHtml:r.plano_html||null,planoProgresso:(function(p){if(!p)return[];if(Array.isArray(p))return p;try{var v=JSON.parse(p);return Array.isArray(v)?v:[];}catch(e){return[];}})(r.plano_progresso),
-    avisoCancelamento:r.aviso_cancelamento||false,avisoCancelamentoData:r.aviso_cancelamento_data||null,comentarios:[]};
+    avisoCancelamento:r.aviso_cancelamento||false,avisoCancelamentoData:r.aviso_cancelamento_data||null,comentarios:[],
+    valorManual:r.valor_manual||false};
 }
 function mapTeacher(r){
-  return {id:r.id,nome:r.nome,email:r.email||'',ativo:r.ativo!==false,saidaEm:r.saida_em||null};
+  return {id:r.id,nome:r.nome,email:r.email||'',ativo:r.ativo!==false,saidaEm:r.saida_em||null,
+    percentual:(r.percentual!==undefined&&r.percentual!==null)?parseFloat(r.percentual):25};
 }
 function mapLead(r){
   return {id:r.id,nome:r.nome,email:r.email||'',tel:r.telefone||'',ddi:r.ddi||'+55',
@@ -629,6 +635,7 @@ async function salvarAlunaDB(al){
       endereco:al.endereco||null,cidade:al.cidade||null,estado:al.estado||null,pais:al.pais||'Brasil',cep:al.cep||null,
       dias_inadimplente:al.diasInadimplente||0,data_atraso:al.dataAtraso||null,nf_url:al.nfUrl||null,ficha_url:al.fichaUrl||null,
       plano_html:al.planoHtml||null,plano_progresso:JSON.stringify(al.planoProgresso||[]),
+      valor_manual:al.valorManual||false,
     };
     // Se tem ID local (nao uuid), buscar pelo nome no banco
     if(al.id && al.id.length===36) payload.id=al.id;
@@ -670,11 +677,19 @@ async function salvarTeacherDB(t){
       return check.data.id;
     }
     // Inserir sem ID (banco gera uuid)
-    var r=await sb.from('teachers').insert({nome:t.nome,email:t.email||'',ativo:t.ativo!==false}).select('id').single();
+    var r=await sb.from('teachers').insert({nome:t.nome,email:t.email||'',ativo:t.ativo!==false,percentual:(t.percentual!==undefined&&t.percentual!==null)?t.percentual:25}).select('id').single();
     if(r.data){ _teacherIdMap[t.id]=r.data.id; console.log('Teacher salva:',t.nome,r.data.id); return r.data.id; }
     if(r.error) console.warn('Erro salvar teacher:', r.error.message);
   }catch(e){ console.warn('Erro salvarTeacherDB:',e); }
   return null;
+}
+// Atualiza o % de comissão de uma teacher (repasse sobre o valor pago pelos alunos dela)
+async function atualizarPercentualTeacherDB(teacherLocalId, percentual){
+  if(!sb) return;
+  try{
+    var tUUID=await resolveTeacherId(teacherLocalId);
+    if(tUUID) await sb.from('teachers').update({percentual:percentual}).eq('id',tUUID);
+  }catch(e){ console.warn('Erro atualizarPercentualTeacherDB:',e); }
 }
 // Ativa/desativa uma teacher (não apaga — preserva histórico de aulas)
 async function atualizarAtivoTeacherDB(teacherLocalId, ativo, saidaEm){
@@ -1137,31 +1152,27 @@ function destroyCharts(){
   _charts = {};
 }
 
-// ── REGRAS DE CUSTO DE AULA ─────────────────────────────
-// Presente: teacher recebe (R$25 individual / R$35 dupla/turma/montada)
-// Cancelada: teacher recebe (R$25 ou R$35)
-// Remarcada: teacher NÃO recebe
-// Faltou: teacher NÃO recebe
-var CUSTO_INDIVIDUAL = 25;
-var CUSTO_GRUPO = 35;
-
-function calcCustoAula(aula){
-  // Remarcada e Faltou = não paga
-  if(aula.presenca==='Remarcada'||aula.presenca==='Faltou') return 0;
-  // Presente, Cancelada ou Montada = paga
-  var al=ALUNOS.find(function(a){return a.id===aula.alunoId;});
-  var tipo=(al?al.tipo:null)||'individual';
-  if(aula.presenca==='Montada') return CUSTO_GRUPO; // montada sempre R$35
-  return (tipo==='individual')?CUSTO_INDIVIDUAL:CUSTO_GRUPO;  // peg/dupla/turma = grupo
+// ── REGRAS DE REPASSE À TEACHER ──────────────────────────
+// Modelo por %: a teacher recebe um percentual do que cada aluna dela PAGOU no mês
+// (Kessia e Alice: 30% · demais teachers: 25%, configurável por teacher).
+function getPercentualTeacher(teacherLocalOuUUID){
+  var t=TEACHERS.find(function(x){return x.id===teacherLocalOuUUID;});
+  if(!t) t=TEACHERS.find(function(x){return (_teacherIdMap[x.id]||x.id)===teacherLocalOuUUID;});
+  return (t&&t.percentual!=null)?t.percentual:25;
 }
 
 function calcCustoMesTeacher(teacherId, mes, ano){
-  return AULAS.filter(function(a){
-    if(a.teacherId!==teacherId) return false;
-    if(!a.data) return false;
-    var d=new Date(a.data);
+  var tUUID=_teacherIdMap[teacherId]||teacherId;
+  var pct=getPercentualTeacher(teacherId);
+  var idsAlunos=ALUNOS.filter(function(a){return a.teacherId===teacherId||a.teacherId===tUUID;})
+    .map(function(a){return a.id;});
+  var receita=PAGAMENTOS.filter(function(p){
+    if(idsAlunos.indexOf(p.alunoId)===-1) return false;
+    if(!p.data) return false;
+    var d=new Date(p.data);
     return d.getMonth()===mes && d.getFullYear()===ano;
-  }).reduce(function(s,a){return s+calcCustoAula(a);},0);
+  }).reduce(function(s,p){return s+p.valor;},0);
+  return Math.round(receita*pct)/100;
 }
 
 // ── FLUXO DE CAIXA / DESPESAS ────────────────────────────
@@ -1263,15 +1274,10 @@ function renderFluxoCaixa(rc){
   var mrr=ALUNOS.filter(function(a){return a.status==='Ativo'&&isPagante(a);}).reduce(function(s,a){return s+parseFloat(a.valor||0);},0);
   var saldo=mrr-totalDesp;
 
-  // Custo previsão teachers este mês
+  // Custo previsão teachers este mês (repasse por % sobre o que as alunas pagaram)
   var custoTeachersPrev=0;
-  var teacherIds=[...new Set(AULAS.filter(function(a){
-    if(!a.data) return false;
-    var d=new Date(a.data);
-    return d.getMonth()===mes&&d.getFullYear()===ano;
-  }).map(function(a){return a.teacherId;}))];
-  teacherIds.forEach(function(tid){
-    custoTeachersPrev+=calcCustoMesTeacher(tid,mes,ano);
+  teachersAtivas().forEach(function(t){
+    custoTeachersPrev+=calcCustoMesTeacher(t.id,mes,ano);
   });
 
   rc.innerHTML=
@@ -1290,7 +1296,7 @@ function renderFluxoCaixa(rc){
     +'<div class="sg g4" style="margin-bottom:20px">'
     +'<div class="sc ok"><div class="sl">Receita prevista</div><div class="sv">R$ '+mrr.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">MRR</div></div>'
     +'<div class="sc warn"><div class="sl">Despesas lançadas</div><div class="sv">R$ '+totalDesp.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
-    +'<div class="sc warn"><div class="sl">Custo teachers</div><div class="sv">R$ '+custoTeachersPrev.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">Baseado nas aulas</div></div>'
+    +'<div class="sc warn"><div class="sl">Repasse teachers</div><div class="sv">R$ '+custoTeachersPrev.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">% sobre o que as alunas pagaram</div></div>'
     +'<div class="sc '+(saldo>=0?'ok':'')+'"><div class="sl">Saldo previsto</div><div class="sv" style="color:'+(saldo>=0?'#16a34a':'#dc2626')+'">R$ '+saldo.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
     +'</div>'
     // Form nova despesa
@@ -1361,50 +1367,41 @@ function renderCustoTeachers(rc){
 
   var rows=TEACHERS.map(function(t){
     var tid=_teacherIdMap[t.id]||t.id;
-    var aulasDoMes=AULAS.filter(function(a){
-      if(a.teacherId!==tid&&a.teacherId!==t.id) return false;
-      if(!a.data) return false;
-      var d=new Date(a.data); return d.getMonth()===mes&&d.getFullYear()===ano;
-    });
-    var presentes=aulasDoMes.filter(function(a){return a.presenca==='Presente';}).length;
-    var canceladas=aulasDoMes.filter(function(a){return a.presenca==='Cancelada';}).length;
-    var remarcadas=aulasDoMes.filter(function(a){return a.presenca==='Remarcada';}).length;
-    var montadas=aulasDoMes.filter(function(a){return a.presenca==='Montada';}).length;
-    var faltou=aulasDoMes.filter(function(a){return a.presenca==='Faltou';}).length;
-    var custo=calcCustoMesTeacher(tid,mes,ano)+calcCustoMesTeacher(t.id,mes,ano);
-    return {nome:t.nome+((t.ativo===false)?' (ex-teacher)':''),ativa:(t.ativo!==false),presentes:presentes,canceladas:canceladas,remarcadas:remarcadas,montadas:montadas,faltou:faltou,custo:custo,total:aulasDoMes.length};
-  }).filter(function(r){return r.ativa||r.total>0||r.custo>0;});
+    var pct=getPercentualTeacher(t.id);
+    var qtdAlunos=ALUNOS.filter(function(a){return a.teacherId===t.id||a.teacherId===tid;}).length;
+    var custo=calcCustoMesTeacher(t.id,mes,ano);
+    var receita=pct>0?Math.round((custo/(pct/100))*100)/100:0;
+    return {nome:t.nome+((t.ativo===false)?' (ex-teacher)':''),ativa:(t.ativo!==false),pct:pct,qtdAlunos:qtdAlunos,receita:receita,custo:custo};
+  }).filter(function(r){return r.ativa||r.qtdAlunos>0||r.custo>0;});
 
   var totalCusto=rows.reduce(function(s,r){return s+r.custo;},0);
+  var totalReceita=rows.reduce(function(s,r){return s+r.receita;},0);
 
   rc.innerHTML=
     '<div class="sg g3" style="margin-bottom:20px">'
-    +'<div class="sc warn"><div class="sl">Custo total teachers</div><div class="sv">R$ '+totalCusto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+meses[mes]+' '+ano+'</div></div>'
-    +'<div class="sc"><div class="sl">Individual</div><div class="sv">R$ '+CUSTO_INDIVIDUAL+',00/h</div></div>'
-    +'<div class="sc"><div class="sl">Turma/Dupla/Montada</div><div class="sv">R$ '+CUSTO_GRUPO+',00/h</div></div>'
+    +'<div class="sc warn"><div class="sl">Repasse total às teachers</div><div class="sv">R$ '+totalCusto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+meses[mes]+' '+ano+'</div></div>'
+    +'<div class="sc"><div class="sl">Kessia e Alice</div><div class="sv">30%</div></div>'
+    +'<div class="sc"><div class="sl">Demais teachers</div><div class="sv">25%</div></div>'
     +'</div>'
-    +'<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Previsão por teacher — '+meses[mes]+' '+ano+'</h3></div>'
-    +'<table class="tbl"><tr><th>Teacher</th><th>Presentes</th><th>Canceladas</th><th>Montadas</th><th>Remarcadas</th><th>Faltou (aluno)</th><th style="color:var(--cr)">Previsão R$</th></tr>'
+    +'<div class="card"><div class="ch"><i class="ti ti-school"></i><h3>Repasse por teacher — '+meses[mes]+' '+ano+'</h3></div>'
+    +'<table class="tbl"><tr><th>Teacher</th><th>Alunos</th><th>%</th><th>Recebido das alunas</th><th style="color:var(--cr)">Repasse R$</th></tr>'
     +rows.map(function(r){
       return '<tr>'
         +'<td class="nm">'+r.nome+'</td>'
-        +'<td style="color:#16a34a">'+r.presentes+'</td>'
-        +'<td style="color:#ca8a04">'+r.canceladas+'</td>'
-        +'<td style="color:#8b5cf6">'+r.montadas+'</td>'
-        +'<td style="color:#94a3b8">'+r.remarcadas+'</td>'
-        +'<td style="color:#dc2626">'+r.faltou+'</td>'
+        +'<td>'+r.qtdAlunos+'</td>'
+        +'<td>'+r.pct+'%</td>'
+        +'<td>R$ '+r.receita.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td>'
         +'<td style="font-weight:700;color:var(--cr)">R$ '+r.custo.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td>'
         +'</tr>';
     }).join('')
-    +'<tr style="background:rgba(121,20,40,.05);font-weight:700"><td colspan="6">Total</td><td style="color:var(--cr)">R$ '+totalCusto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td></tr>'
+    +'<tr style="background:rgba(121,20,40,.05);font-weight:700"><td colspan="3">Total</td><td>R$ '+totalReceita.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td><td style="color:var(--cr)">R$ '+totalCusto.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</td></tr>'
     +'</table></div>'
     +'<div class="card" style="margin-top:16px"><div class="ch"><i class="ti ti-info-circle"></i><h3>Regras de pagamento</h3></div>'
     +'<div style="padding:8px 16px 16px;font-size:12px;color:var(--cd);line-height:1.8">'
-    +'✅ <strong>Presente</strong> — teacher recebe (R$25 individual / R$35 dupla, turma ou montada)<br>'
-    +'✅ <strong>Cancelada</strong> — teacher recebe (aula preparada)<br>'
-    +'🔧 <strong>Montada</strong> — teacher recebe R$35 (montagem de material)<br>'
-    +'❌ <strong>Remarcada</strong> — teacher NÃO recebe (aula será feita em outro momento)<br>'
-    +'❌ <strong>Faltou (aluno)</strong> — teacher NÃO recebe'
+    +'💰 A teacher recebe um <strong>percentual do que cada aluna dela efetivamente pagou</strong> no mês (não é mais por aula dada).<br>'
+    +'✅ <strong>Kessia e Alice</strong> — 30% do valor pago pelas alunas delas<br>'
+    +'✅ <strong>Demais teachers</strong> — 25% do valor pago pelas alunas delas<br>'
+    +'ℹ️ O % de cada teacher pode ser ajustado no perfil dela, em "Teachers".'
     +'</div></div>';
 }
 
@@ -1674,24 +1671,15 @@ function exportarExcel(){
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(despData), 'Despesas');
 
-  // Aba Custo Teachers
+  // Aba Custo Teachers (repasse por %)
   var hoje2=new Date();
-  var custoData=[['Teacher','Presentes','Canceladas','Montadas','Remarcadas','Faltou','Custo R$']];
+  var custoData=[['Teacher','Alunos','% Comissão','Repasse R$']];
   TEACHERS.forEach(function(t){
     var tid=_teacherIdMap[t.id]||t.id;
-    var aulasM=AULAS.filter(function(a){
-      if(a.teacherId!==tid&&a.teacherId!==t.id) return false;
-      if(!a.data) return false;
-      var d=new Date(a.data); return d.getMonth()===hoje2.getMonth()&&d.getFullYear()===hoje2.getFullYear();
-    });
-    var pres=aulasM.filter(function(a){return a.presenca==='Presente';}).length;
-    var canc=aulasM.filter(function(a){return a.presenca==='Cancelada';}).length;
-    var mont=aulasM.filter(function(a){return a.presenca==='Montada';}).length;
-    var remar=aulasM.filter(function(a){return a.presenca==='Remarcada';}).length;
-    var falt=aulasM.filter(function(a){return a.presenca==='Faltou';}).length;
-    var custo=calcCustoMesTeacher(tid,hoje2.getMonth(),hoje2.getFullYear())+calcCustoMesTeacher(t.id,hoje2.getMonth(),hoje2.getFullYear());
-    if(t.ativo===false&&aulasM.length===0&&custo===0) return;
-    custoData.push([t.nome+((t.ativo===false)?' (ex-teacher)':''),pres,canc,mont,remar,falt,custo]);
+    var qtdAlunos=ALUNOS.filter(function(a){return a.teacherId===t.id||a.teacherId===tid;}).length;
+    var custo=calcCustoMesTeacher(t.id,hoje2.getMonth(),hoje2.getFullYear());
+    if(t.ativo===false&&qtdAlunos===0&&custo===0) return;
+    custoData.push([t.nome+((t.ativo===false)?' (ex-teacher)':''),qtdAlunos,getPercentualTeacher(t.id)+'%',custo]);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(custoData), 'Custo Teachers');
 
@@ -2170,7 +2158,8 @@ function mCadastrarEquipe(){
     +'<option value="comercial">Comercial</option>'
     +'<option value="financeiro">Financeiro</option>'
     +'<option value="pedagogico">Coord. Pedagógica</option>'
-    +'</select></div></div>'
+    +'</select></div>'
+    +'<div class="fg" id="ce-pct-wrap"><label>% de comissão (só teacher)</label><input type="number" id="ce-pct" value="25" min="0" max="100"></div></div>'
     +'<div class="fgrid"><div class="fg"><label>Usuário (login)</label><input id="ce-usuario" placeholder="ex: alice"></div>'
     +'<div class="fg"><label>Senha</label><input type="password" id="ce-senha" placeholder="Senha"></div></div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
@@ -2190,9 +2179,11 @@ async function salvarEquipe(){
   var tid=null;
   if(role==='teacher'){
     tid=uuid(); // UUID próprio — vira o id real da teacher tanto localmente quanto no Supabase
-    var novaTeacher={id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true};
+    var pctEl=document.getElementById('ce-pct');
+    var pctNova=pctEl?(parseFloat(pctEl.value)||25):25;
+    var novaTeacher={id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true,percentual:pctNova};
     TEACHERS.push(novaTeacher);
-    await sb.from('teachers').upsert({id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true});
+    await sb.from('teachers').upsert({id:tid,nome:nome,email:usuario+'@amenina.com',ativo:true,percentual:pctNova});
     _teacherIdMap[tid]=tid;
   }
   var novoMembro={id:newId,nome:nome,role:role,roleLabel:labels[role],usuario:usuario,senha:senha,avatar:av,teacherId:tid,duploPerfil:false};
@@ -2576,13 +2567,17 @@ function openEditAluna(id){
     +'<option value="Anual"'+(al.plano==='Anual'?' selected':'')+'>Anual</option>'
     +'<option value="Publicidade"'+(al.plano==='Publicidade'?' selected':'')+'>🎁 Publicidade</option>'
     +'</select></div>'
-    +'<div class="fg"><label>Valor R$</label><input type="number" id="ea-valor" value="'+al.valor+'"></div>'
+    +'<div class="fg"><label>Valor R$'+(al.valorManual?' <span style="font-size:10px;color:var(--cr);font-weight:700">(travado manualmente)</span>':'')+'</label><input type="number" id="ea-valor" value="'+al.valor+'"></div>'
     +'<div class="fg"><label>Vencimento</label><select id="ea-venc">'+vOpts+'</select></div>'
     +'<div class="fg"><label>Financeiro</label><select id="ea-fin">'
     +'<option value="Pago"'+(al.fin==='Pago'?' selected':'')+'>Pago</option>'
     +'<option value="Pendente"'+(al.fin==='Pendente'?' selected':'')+'>Pendente</option>'
     +'<option value="Atrasado"'+(al.fin==='Atrasado'?' selected':'')+'>Atrasado</option>'
-    +'</select></div></div>'))
+    +'</select></div>'
+    +(al.valorManual?'<div class="fg" style="display:flex;align-items:center;gap:8px;padding-top:22px">'
+      +'<input type="checkbox" id="ea-valor-destravar" style="width:16px;height:16px">'
+      +'<label style="margin:0;font-size:11px" for="ea-valor-destravar">Voltar a calcular o valor automaticamente (desconto/atraso)</label></div>':'')
+    +'</div>'))
     +'</div>'
     +'<div id="epanel-ficha" style="display:none;text-align:center;padding:20px">'
     +(temFicha
@@ -2634,7 +2629,12 @@ function salvarEditAluna(){
   if(g('ea-cidade')) al.cidade=g('ea-cidade').value;
   if(g('ea-estado')) al.estado=g('ea-estado').value;
   if(g('ea-cep')) al.cep=g('ea-cep').value;
-  if(g('ea-valor')) al.valor=parseInt(g('ea-valor').value)||al.valor;
+  if(g('ea-valor')){
+    var novoValor=parseInt(g('ea-valor').value)||al.valor;
+    if(novoValor!==al.valor) al.valorManual=true; // edição manual passa a "travar" o valor contra o reajuste automático de desconto/atraso
+    al.valor=novoValor;
+  }
+  if(g('ea-valor-destravar')&&g('ea-valor-destravar').checked) al.valorManual=false;
   if(g('ea-venc')) al.venc=parseInt(g('ea-venc').value)||al.venc;
   if(g('ea-fin')){
     var finAnt=al.fin;
@@ -3055,7 +3055,6 @@ function renderAulas(c,a){
             +'<span style="font-size:11px;color:var(--crose)">'+fmtDateBr(r.data)+'</span>'
             +bdg(r.presenca)
             +(r.reposicao?'<span style="font-size:10px;background:#fef3e0;color:#ca8a04;border-radius:4px;padding:1px 6px;font-weight:700">🔄 Reposição</span>':'')
-            +(S.perfil==='gestao'||S.perfil==='financeiro'?'<span style="font-size:10px;background:rgba(121,20,40,.08);color:var(--cr);border-radius:4px;padding:1px 6px">R$ '+calcCustoAula(r)+'</span>':'')
             +(podeEditar?'<button class="btn btn-ghost btn-sm" onclick="openEditarAula(\''+r.id+'\')"><i class="ti ti-pencil"></i></button>':'')
             +(podeEditar?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="excluirAula(\''+r.id+'\')"><i class="ti ti-trash"></i></button>':'')
             +'</div>'
@@ -3376,13 +3375,13 @@ function marcarPgto(btn){
   if(fin==='Atrasado'){
     if(!al.dataAtraso) al.dataAtraso=new Date().toISOString().split('T')[0];
     al.diasInadimplente=calcDiasAtraso(al.dataAtraso);
-    // Volta valor ao cheio se tem desconto
-    if(al.desconto>0){ al.valor=al.valorCheio; showToast('⚠️ Desconto removido — valor voltou para R$ '+al.valor); }
+    // Volta valor ao cheio se tem desconto — a menos que o valor tenha sido travado manualmente
+    if(al.desconto>0&&!al.valorManual){ al.valor=al.valorCheio; showToast('⚠️ Desconto removido — valor voltou para R$ '+al.valor); }
     estornarPagamentoHoje(al.id);
   } else if(fin==='Pago'){
     al.dataAtraso=null; al.diasInadimplente=0;
-    // Restaurar desconto se tinha
-    if(al.desconto>0){ al.valor=Math.round(al.valorCheio*(1-al.desconto/100)); }
+    // Restaurar desconto se tinha — a menos que o valor tenha sido travado manualmente
+    if(al.desconto>0&&!al.valorManual){ al.valor=Math.round(al.valorCheio*(1-al.desconto/100)); }
     registrarPagamento(al);
   }
   salvarAlunaDB(al);
@@ -3557,8 +3556,8 @@ function abrirPerfilTeacher(teacherLocalId){
     if(!a.data) return false;
     var d=new Date(a.data); return d.getMonth()===hoje.getMonth()&&d.getFullYear()===hoje.getFullYear();
   });
-  var custoMes=(calcCustoMesTeacher(teacherLocalId,hoje.getMonth(),hoje.getFullYear())
-    +calcCustoMesTeacher(tUUID,hoje.getMonth(),hoje.getFullYear()));
+  var custoMes=calcCustoMesTeacher(teacherLocalId,hoje.getMonth(),hoje.getFullYear());
+  var pctAtual=getPercentualTeacher(teacherLocalId);
 
   var html='<div class="mhdr"><h2>'+t.nome+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div style="padding:0 20px 20px">'
@@ -3566,8 +3565,14 @@ function abrirPerfilTeacher(teacherLocalId){
     +'<div class="sg g3" style="margin-bottom:16px">'
     +'<div class="sc"><div class="sl">Alunos</div><div class="sv">'+alunos.length+'</div></div>'
     +'<div class="sc"><div class="sl">Aulas este mês</div><div class="sv">'+aulasMes.length+'</div></div>'
-    +'<div class="sc warn"><div class="sl">Custo previsto</div><div class="sv">R$ '+custoMes.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
+    +'<div class="sc warn"><div class="sl">Repasse previsto</div><div class="sv">R$ '+custoMes.toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
     +'</div>'
+    // % de comissão (editável)
+    +'<div class="card" style="margin-bottom:16px"><div style="padding:14px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<label style="margin:0;font-size:12px;font-weight:700;color:var(--cr)">% de comissão sobre o valor pago pelas alunas:</label>'
+    +'<input type="number" id="perfil-pct" value="'+pctAtual+'" min="0" max="100" style="width:70px;padding:6px 8px;border-radius:8px;border:1.5px solid rgba(121,20,40,.18)">'
+    +'<button class="btn btn-primary btn-sm" onclick="salvarPercentualTeacher(\''+teacherLocalId+'\')"><i class="ti ti-check"></i> Salvar %</button>'
+    +'</div></div>'
     // Lista de alunos clicáveis
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
     +'<div style="font-size:12px;font-weight:700;color:var(--cr)">👩‍🎓 Alunos (clique para ver histórico)</div>'
@@ -3591,6 +3596,19 @@ function abrirPerfilTeacher(teacherLocalId){
       :'<div style="text-align:center;padding:20px;color:var(--crose);font-size:12px">Nenhuma aula este mês.</div>')
     +'</div>';
   openModal(html);
+}
+
+async function salvarPercentualTeacher(teacherLocalId){
+  var el=document.getElementById('perfil-pct');
+  if(!el) return;
+  var pct=parseFloat(el.value);
+  if(isNaN(pct)||pct<0||pct>100){ showToast('Informe um % válido (0 a 100).'); return; }
+  var t=TEACHERS.find(function(x){return x.id===teacherLocalId;});
+  if(!t) return;
+  t.percentual=pct;
+  await atualizarPercentualTeacherDB(teacherLocalId,pct);
+  showToast('% de comissão atualizado! ✅');
+  abrirPerfilTeacher(teacherLocalId);
 }
 
 // Lista todas as alunas (com busca) para atribuir rapidamente a uma teacher
@@ -3865,8 +3883,8 @@ function marcarFinanceiro(alunaId, status){
   var al=ALUNOS.find(function(a){return a.id===alunaId;});
   if(!al) return;
   al.fin=status;
-  if(status==='Atrasado' && al.desconto>0){
-    // Volta ao valor cheio
+  if(status==='Atrasado' && al.desconto>0 && !al.valorManual){
+    // Volta ao valor cheio (a menos que o valor tenha sido travado manualmente)
     al.valor=al.valorCheio||al.valor;
     showToast('⚠️ Mensalidade atrasada — desconto removido, valor voltou para R$ '+al.valor);
   }
