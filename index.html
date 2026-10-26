@@ -106,6 +106,9 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
 .g4{grid-template-columns:repeat(4,1fr);}
 .sc{background:var(--ccard);border-radius:10px;padding:14px 16px;border:1px solid rgba(121,20,40,.07);}
 .sc.warn{border-color:rgba(220,53,69,.2);background:#fff8f8;}
+.sc-filtro{transition:all .15s;cursor:pointer;}
+.sc-filtro:hover{border-color:var(--cr);}
+.sc-filtro.sc-filtro-ativo{border-color:var(--cr);border-width:2px;box-shadow:0 0 0 2px rgba(121,20,40,.08);}
 .sc.ok{border-color:rgba(45,106,16,.2);}
 .sl{font-size:11px;color:var(--crose);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
 .sv{font-size:26px;font-weight:700;color:var(--cd);font-family:var(--font-serif);}
@@ -3288,20 +3291,34 @@ async function salvarAula(){
 // ALUNOS
 // ══════════════════════════════════════════════════════
 var _alunosListaCache=[];
+var _alunosFiltroStatus='';
 function renderAlunos(c,a){
   if(S.perfil==='gestao'||S.perfil==='financeiro'||S.perfil==='pedagogico') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
   var lista=alunosAtivos();
   _alunosListaCache=lista;
+  _alunosFiltroStatus='';
+  var qtdRisco=lista.filter(function(a){return a.risco!=='low';}).length;
+  var qtdInad=lista.filter(function(a){return a.fin==='Atrasado';}).length;
   c.innerHTML='<div class="sg g4">'
-    +'<div class="sc"><div class="sl">Ativas</div><div class="sv">'+lista.length+'</div></div>'
-    +'<div class="sc warn"><div class="sl">Em risco</div><div class="sv">'+lista.filter(function(a){return a.risco!=='low';}).length+'</div></div>'
+    +'<div class="sc sc-filtro" data-filtro="Ativo" onclick="aplicarFiltroStatusAluno(\'Ativo\')"><div class="sl">Ativas</div><div class="sv">'+lista.length+'</div></div>'
+    +'<div class="sc warn sc-filtro" data-filtro="risco" onclick="aplicarFiltroStatusAluno(\'risco\')"><div class="sl">Em risco</div><div class="sv">'+qtdRisco+'</div></div>'
     +'<div class="sc"><div class="sl">Freq. média</div><div class="sv">'+(lista.length?Math.round(lista.reduce(function(s,a){return s+a.freq;},0)/lista.length):0)+'%</div></div>'
-    +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+lista.filter(function(a){return a.fin==='Atrasado';}).length+'</div></div>'
+    +'<div class="sc warn sc-filtro" data-filtro="Atrasado" onclick="aplicarFiltroStatusAluno(\'Atrasado\')"><div class="sl">Inadimplentes</div><div class="sv">'+qtdInad+'</div></div>'
     +'</div>'
     +'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Lista de alunas</h3></div>'
-    +'<div style="position:relative;margin-bottom:14px">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'
+    +'<div style="position:relative;flex:1;min-width:200px">'
     +'<i class="ti ti-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--crose);font-size:15px"></i>'
-    +'<input type="text" id="busca-aluno" oninput="filtrarAlunos(this.value)" placeholder="Buscar aluna pelo nome..." style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid rgba(121,20,40,.15);border-radius:9px;font-size:13px;font-family:var(--font-sans);box-sizing:border-box">'
+    +'<input type="text" id="busca-aluno" oninput="filtrarAlunos()" placeholder="Buscar aluna pelo nome..." style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid rgba(121,20,40,.15);border-radius:9px;font-size:13px;font-family:var(--font-sans);box-sizing:border-box">'
+    +'</div>'
+    +'<select id="filtro-status-aluno" onchange="aplicarFiltroStatusAluno(this.value)" style="padding:9px 12px;border:1.5px solid rgba(121,20,40,.15);border-radius:9px;font-size:13px;font-family:var(--font-sans);background:var(--ccard);color:var(--cd)">'
+    +'<option value="">Todas</option>'
+    +'<option value="Ativo">Só ativas</option>'
+    +'<option value="Atenção">Atenção</option>'
+    +'<option value="Desaparecido">Desaparecido</option>'
+    +'<option value="risco">Em risco</option>'
+    +'<option value="Atrasado">Inadimplentes</option>'
+    +'</select>'
     +'</div>'
     +'<div id="alunos-tbl-wrap">'+tabelaAlunosHtml(lista)+'</div>'
     +'</div>';
@@ -3314,9 +3331,26 @@ function tabelaAlunosHtml(lista){
         +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
     }).join('')+'</table>';
 }
-function filtrarAlunos(termo){
-  var t=(termo||'').toLowerCase().trim();
-  var filtrada=t?_alunosListaCache.filter(function(al){return (al.nome||'').toLowerCase().indexOf(t)!==-1;}):_alunosListaCache;
+function aplicarFiltroStatusAluno(val){
+  _alunosFiltroStatus=(_alunosFiltroStatus===val)?'':val;
+  var sel=document.getElementById('filtro-status-aluno');
+  if(sel) sel.value=_alunosFiltroStatus;
+  document.querySelectorAll('.sc-filtro').forEach(function(el){
+    el.classList.toggle('sc-filtro-ativo',el.dataset.filtro===_alunosFiltroStatus&&_alunosFiltroStatus!=='');
+  });
+  filtrarAlunos();
+}
+function filtrarAlunos(){
+  var inp=document.getElementById('busca-aluno');
+  var t=(inp?inp.value:'').toLowerCase().trim();
+  var filtro=_alunosFiltroStatus;
+  var filtrada=_alunosListaCache.filter(function(al){
+    if(t&&(al.nome||'').toLowerCase().indexOf(t)===-1) return false;
+    if(filtro==='risco'){ if(al.risco==='low') return false; }
+    else if(filtro==='Atrasado'){ if(al.fin!=='Atrasado') return false; }
+    else if(filtro){ if(al.status!==filtro) return false; }
+    return true;
+  });
   var wrap=document.getElementById('alunos-tbl-wrap');
   if(wrap) wrap.innerHTML=tabelaAlunosHtml(filtrada);
 }
@@ -4573,7 +4607,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.E';
+var BUILD_VERSAO='v19.out.F';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
