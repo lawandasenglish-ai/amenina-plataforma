@@ -3287,22 +3287,38 @@ async function salvarAula(){
 // ══════════════════════════════════════════════════════
 // ALUNOS
 // ══════════════════════════════════════════════════════
+var _alunosListaCache=[];
 function renderAlunos(c,a){
   if(S.perfil==='gestao'||S.perfil==='financeiro'||S.perfil==='pedagogico') a.innerHTML='<button class="btn btn-primary btn-sm" onclick="openCadastrarAluna()"><i class="ti ti-plus"></i> Nova aluna</button>';
   var lista=alunosAtivos();
+  _alunosListaCache=lista;
   c.innerHTML='<div class="sg g4">'
     +'<div class="sc"><div class="sl">Ativas</div><div class="sv">'+lista.length+'</div></div>'
     +'<div class="sc warn"><div class="sl">Em risco</div><div class="sv">'+lista.filter(function(a){return a.risco!=='low';}).length+'</div></div>'
     +'<div class="sc"><div class="sl">Freq. média</div><div class="sv">'+(lista.length?Math.round(lista.reduce(function(s,a){return s+a.freq;},0)/lista.length):0)+'%</div></div>'
     +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+lista.filter(function(a){return a.fin==='Atrasado';}).length+'</div></div>'
     +'</div>'
-    +(lista.length?'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Lista de alunas</h3></div>'
-      +'<table class="tbl"><tr><th>Nome</th><th>Nível</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th><th>Freq.</th><th>Financeiro</th><th>Status</th><th></th></tr>'
-      +lista.map(function(al){
-        return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdgFin(al)+'</td><td>'+bdg(al.status)+'</td>'
-          +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
-      }).join('')+'</table></div>'
-      :'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna cadastrada.</div>');
+    +'<div class="card"><div class="ch"><i class="ti ti-users"></i><h3>Lista de alunas</h3></div>'
+    +'<div style="position:relative;margin-bottom:14px">'
+    +'<i class="ti ti-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--crose);font-size:15px"></i>'
+    +'<input type="text" id="busca-aluno" oninput="filtrarAlunos(this.value)" placeholder="Buscar aluna pelo nome..." style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid rgba(121,20,40,.15);border-radius:9px;font-size:13px;font-family:var(--font-sans);box-sizing:border-box">'
+    +'</div>'
+    +'<div id="alunos-tbl-wrap">'+tabelaAlunosHtml(lista)+'</div>'
+    +'</div>';
+}
+function tabelaAlunosHtml(lista){
+  if(!lista.length) return '<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna encontrada.</div>';
+  return '<table class="tbl"><tr><th>Nome</th><th>Nível</th>'+(S.perfil!=='teacher'?'<th>Teacher</th>':'')+'<th>Plano</th><th>Freq.</th><th>Financeiro</th><th>Status</th><th></th></tr>'
+    +lista.map(function(al){
+      return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.nivel+'</td>'+(S.perfil!=='teacher'?'<td>'+getTeacher(al.teacherId).nome+'</td>':'')+'<td>'+al.plano+'</td><td>'+al.freq+'%</td><td>'+bdgFin(al)+'</td><td>'+bdg(al.status)+'</td>'
+        +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="openEditAluna(this.dataset.alid)"><i class="ti ti-pencil"></i></button></td></tr>';
+    }).join('')+'</table>';
+}
+function filtrarAlunos(termo){
+  var t=(termo||'').toLowerCase().trim();
+  var filtrada=t?_alunosListaCache.filter(function(al){return (al.nome||'').toLowerCase().indexOf(t)!==-1;}):_alunosListaCache;
+  var wrap=document.getElementById('alunos-tbl-wrap');
+  if(wrap) wrap.innerHTML=tabelaAlunosHtml(filtrada);
 }
 
 function renderPausadasCanceladas(c,a){
@@ -4557,7 +4573,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.D';
+var BUILD_VERSAO='v19.out.E';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
