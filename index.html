@@ -1067,7 +1067,7 @@ var NAVS={
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {id:'jogos',l:'Jogos',ic:'ti-device-gamepad-2'},
     {s:'Relatórios'},{id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
-    {s:'Financeiro'},{id:'cobranca',l:'Cobrança',ic:'ti-calendar-dollar',n:function(){return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';}).length;}},
+    {s:'Financeiro'},{id:'vencimentos',l:'Vencimentos',ic:'ti-calendar-dollar',n:function(){return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';}).length;}},
     {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
@@ -1104,7 +1104,7 @@ var NAVS={
   financeiro:[
     {s:'Financeiro'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
-    {id:'cobranca',l:'Cobrança',ic:'ti-calendar-dollar',n:function(){return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';}).length;}},
+    {id:'vencimentos',l:'Vencimentos',ic:'ti-calendar-dollar',n:function(){return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';}).length;}},
     {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
@@ -1130,7 +1130,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  cobranca:'Cobrança',inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
+  vencimentos:'Vencimentos',inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
 
 function buildNav(){
   document.body.classList.toggle('pf-gestao',S.perfil==='gestao');
@@ -1171,7 +1171,7 @@ function goPage(id){
   var pages={
     dashboard:renderDashboard,usuarios:renderUsuarios,alunos:renderAlunos,
     crm:renderCRM,funil:renderFunil,matriculas:renderMatriculas,metas:renderMetas,
-    teachers:renderTeachers,cobranca:renderCobranca,pagamentos:function(){renderPagamentos(false);},
+    teachers:renderTeachers,vencimentos:renderVencimentos,pagamentos:function(){renderPagamentos(false);},
     inadimplencia:function(){renderPagamentos(true);},
   negativacao:renderNegativacao,
   planos:renderPlanos,nf:renderNF,
@@ -3460,15 +3460,15 @@ function renderRetencao(c,a){
 // ══════════════════════════════════════════════════════
 // FINANCEIRO
 // ══════════════════════════════════════════════════════
-// Cobrança: visão completa de todas as alunas pagantes organizadas por dia de vencimento,
+// Vencimentos: visão completa de todas as alunas pagantes organizadas por dia de vencimento,
 // com a previsão de valor a receber em cada dia. Mostra ativas, atrasadas/inadimplentes
 // e pausadas por inadimplência. Só não aparecem aqui: canceladas e pausadas a pedido.
-function alunosCobranca(){
+function alunosVencimentos(){
   return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';});
 }
-function renderCobranca(c,a){
+function renderVencimentos(c,a){
   atualizarDiasInadimplente();
-  var lista=alunosCobranca();
+  var lista=alunosVencimentos();
   var previstoTotal=lista.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
   var inadimplentes=lista.filter(function(al){return al.fin==='Atrasado';}).length;
   // Agrupar por vencimento (inclui qualquer dia fora dos padrões num grupo "Outros")
@@ -3508,13 +3508,13 @@ function renderCobranca(c,a){
     tabelaHtml+=outros.map(linhaAluna).join('');
   }
   c.innerHTML='<div class="sg g3">'
-    +'<div class="sc"><div class="sl">Alunas na cobrança</div><div class="sv">'+lista.length+'</div></div>'
+    +'<div class="sc"><div class="sl">Alunas na lista</div><div class="sv">'+lista.length+'</div></div>'
     +'<div class="sc"><div class="sl">Previsto no total</div><div class="sv">R$ '+previstoTotal.toLocaleString('pt-BR')+'</div></div>'
     +'<div class="sc warn"><div class="sl">Em atraso/inadimplentes</div><div class="sv">'+inadimplentes+'</div></div>'
     +'</div>'
-    +'<div class="card"><div class="ch"><i class="ti ti-calendar-dollar"></i><h3>Cobrança por vencimento</h3></div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-calendar-dollar"></i><h3>Vencimentos — previsão de recebimento</h3></div>'
     +(tabelaHtml?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Financeiro</th><th>Status</th><th></th></tr>'+tabelaHtml+'</table>'
-      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna na cobrança.</div>')+'</div>';
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna nessa lista.</div>')+'</div>';
 }
 
 function renderPagamentos(soloInadimplentes){
@@ -4674,7 +4674,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.H';
+var BUILD_VERSAO='v19.out.I';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
