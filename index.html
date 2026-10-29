@@ -1067,7 +1067,8 @@ var NAVS={
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {id:'jogos',l:'Jogos',ic:'ti-device-gamepad-2'},
     {s:'Relatórios'},{id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
-    {s:'Financeiro'},{id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
+    {s:'Financeiro'},{id:'cobranca',l:'Cobrança',ic:'ti-calendar-dollar',n:function(){return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';}).length;}},
+    {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
     {id:'nf',l:'Notas Fiscais',ic:'ti-receipt-2'},
@@ -1103,6 +1104,7 @@ var NAVS={
   financeiro:[
     {s:'Financeiro'},{id:'dashboard',l:'Dashboard',ic:'ti-layout-dashboard'},
     {id:'relatorios',l:'Relatórios & Analytics',ic:'ti-chart-bar'},
+    {id:'cobranca',l:'Cobrança',ic:'ti-calendar-dollar',n:function(){return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';}).length;}},
     {id:'pagamentos',l:'Pagamentos',ic:'ti-cash'},
     {id:'inadimplencia',l:'Inadimplência',ic:'ti-alert-triangle',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length;}},
     {id:'negativacao',l:'Negativação',ic:'ti-ban',n:function(){return ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a)&&(a.diasInadimplente||0)>10;}).length;}},
@@ -1128,7 +1130,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
+  cobranca:'Cobrança',inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
 
 function buildNav(){
   document.body.classList.toggle('pf-gestao',S.perfil==='gestao');
@@ -1169,7 +1171,7 @@ function goPage(id){
   var pages={
     dashboard:renderDashboard,usuarios:renderUsuarios,alunos:renderAlunos,
     crm:renderCRM,funil:renderFunil,matriculas:renderMatriculas,metas:renderMetas,
-    teachers:renderTeachers,pagamentos:function(){renderPagamentos(false);},
+    teachers:renderTeachers,cobranca:renderCobranca,pagamentos:function(){renderPagamentos(false);},
     inadimplencia:function(){renderPagamentos(true);},
   negativacao:renderNegativacao,
   planos:renderPlanos,nf:renderNF,
@@ -3458,6 +3460,63 @@ function renderRetencao(c,a){
 // ══════════════════════════════════════════════════════
 // FINANCEIRO
 // ══════════════════════════════════════════════════════
+// Cobrança: visão completa de todas as alunas pagantes organizadas por dia de vencimento,
+// com a previsão de valor a receber em cada dia. Mostra ativas, atrasadas/inadimplentes
+// e pausadas por inadimplência. Só não aparecem aqui: canceladas e pausadas a pedido.
+function alunosCobranca(){
+  return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';});
+}
+function renderCobranca(c,a){
+  atualizarDiasInadimplente();
+  var lista=alunosCobranca();
+  var previstoTotal=lista.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
+  var inadimplentes=lista.filter(function(al){return al.fin==='Atrasado';}).length;
+  // Agrupar por vencimento (inclui qualquer dia fora dos padrões num grupo "Outros")
+  var grupos=VENC.slice();
+  var porVenc={};
+  grupos.forEach(function(v){porVenc[v]=[];});
+  var outros=[];
+  lista.forEach(function(al){
+    var v=parseInt(al.venc)||10;
+    if(porVenc[v]) porVenc[v].push(al); else outros.push(al);
+  });
+  grupos.forEach(function(v){porVenc[v].sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});});
+  outros.sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});
+  function linhaAluna(al){
+    var badge=al.desconto>0?'<span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;margin-left:4px">-'+al.desconto+'%</span>':'';
+    var valorStr='R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'');
+    var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
+    return '<tr>'
+      +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+diasBadge+'</td>'
+      +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>'+bdgFin(al)+'</td><td>'+bdg(al.status)+'</td>'
+      +'<td style="display:flex;gap:4px">'
+      +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
+      +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
+      +'</td></tr>';
+  }
+  var tabelaHtml='';
+  grupos.forEach(function(v){
+    var gr=porVenc[v];
+    if(!gr||!gr.length) return;
+    var subtotal=gr.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
+    tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+' · '+gr.length+' aluna(s) · previsto R$ '+subtotal.toLocaleString('pt-BR')+'</td></tr>';
+    tabelaHtml+=gr.map(linhaAluna).join('');
+  });
+  if(outros.length){
+    var subtotalO=outros.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
+    tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Outros vencimentos · '+outros.length+' aluna(s) · previsto R$ '+subtotalO.toLocaleString('pt-BR')+'</td></tr>';
+    tabelaHtml+=outros.map(linhaAluna).join('');
+  }
+  c.innerHTML='<div class="sg g3">'
+    +'<div class="sc"><div class="sl">Alunas na cobrança</div><div class="sv">'+lista.length+'</div></div>'
+    +'<div class="sc"><div class="sl">Previsto no total</div><div class="sv">R$ '+previstoTotal.toLocaleString('pt-BR')+'</div></div>'
+    +'<div class="sc warn"><div class="sl">Em atraso/inadimplentes</div><div class="sv">'+inadimplentes+'</div></div>'
+    +'</div>'
+    +'<div class="card"><div class="ch"><i class="ti ti-calendar-dollar"></i><h3>Cobrança por vencimento</h3></div>'
+    +(tabelaHtml?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Financeiro</th><th>Status</th><th></th></tr>'+tabelaHtml+'</table>'
+      :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna na cobrança.</div>')+'</div>';
+}
+
 function renderPagamentos(soloInadimplentes){
   var c=document.getElementById('pc');
   atualizarDiasInadimplente();
@@ -4615,7 +4674,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.G';
+var BUILD_VERSAO='v19.out.H';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
