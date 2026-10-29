@@ -3515,17 +3515,23 @@ function renderVencimentos(c,a){
       valorStr='R$ '+valorEfetivo+(temAjusteMes?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valor+'</span>':(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':''));
     }
     var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
-    var acoes=canceladaMes
-      ?'<button class="btn btn-ghost btn-sm" onclick="reativarCobrancaMes(\''+al.id+'\')"><i class="ti ti-player-play"></i> Reativar cobrança</button>'
-      :('<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
-        +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
-        +'<button class="btn btn-ghost btn-sm" onclick="alterarValorMes(\''+al.id+'\')" title="Dar desconto ou mudar o valor só este mês">💰 Valor só este mês</button>'
-        +(temAjusteMes?'<button class="btn btn-ghost btn-sm" onclick="limparAjusteValorMes(\''+al.id+'\')" title="Remover o ajuste e voltar ao valor normal">↺ Desfazer ajuste</button>':'')
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelarCobrancaMes(\''+al.id+'\')" style="color:var(--crose)" title="Não cobra essa aluna este mês (ela continua aparecendo na lista)">🚫 Cancelar cobrança (mês)</button>');
+    var acoes;
+    if(canceladaMes){
+      acoes='<button class="btn btn-ghost btn-sm" onclick="reativarCobrancaMes(\''+al.id+'\')"><i class="ti ti-player-play"></i> Reativar</button>';
+    } else {
+      var linha1='';
+      if(al.fin!=='Pago') linha1+='<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>';
+      linha1+='<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>';
+      var linha2='<button class="btn btn-ghost btn-sm" onclick="alterarValorMes(\''+al.id+'\')" title="Dar desconto ou mudar o valor só este mês">💰 Valor do mês</button>'
+        +(temAjusteMes?'<button class="btn btn-ghost btn-sm" onclick="limparAjusteValorMes(\''+al.id+'\')" title="Remover o ajuste e voltar ao valor normal">↺ Desfazer</button>':'')
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelarCobrancaMes(\''+al.id+'\')" style="color:var(--crose)" title="Não cobra essa aluna este mês (ela continua aparecendo na lista)">🚫 Cancelar mês</button>';
+      acoes='<div style="display:flex;gap:4px;flex-wrap:wrap">'+linha1+'</div>'
+        +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+linha2+'</div>';
+    }
     return '<tr>'
       +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+ajusteBadge+canceladaBadge+diasBadge+'</td>'
       +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>'+(canceladaMes?'—':bdgFin(al))+'</td><td>'+bdg(al.status)+'</td>'
-      +'<td style="display:flex;gap:4px;flex-wrap:wrap">'+acoes+'</td></tr>';
+      +'<td style="min-width:160px">'+acoes+'</td></tr>';
   }
   var tabelaHtml='';
   grupos.forEach(function(v){
@@ -4747,7 +4753,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.K';
+var BUILD_VERSAO='v19.out.L';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
