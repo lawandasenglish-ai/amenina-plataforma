@@ -24,29 +24,6 @@
 canvas{max-height:220px;}
 @media print{.sb,.tb-actions{display:none!important;}.pc{margin:0!important;padding:0!important;}}
 
-/* ══ RESPONSIVO / CELULAR ══ */
-@media (max-width:860px){
-  .btn-menu-mobile{display:inline-flex;align-items:center;justify-content:center;}
-  .sb{position:fixed;top:0;left:0;height:100%;transform:translateX(-100%);transition:transform .25s ease;z-index:999;width:78vw;max-width:270px;box-shadow:4px 0 24px rgba(0,0,0,.25);}
-  body.sb-open .sb{transform:translateX(0);}
-  #sb-backdrop{display:none;position:fixed;inset:0;background:rgba(20,6,9,.45);z-index:998;}
-  body.sb-open #sb-backdrop{display:block;}
-  .mw{width:100%;}
-  .topbar{padding:0 10px;height:50px;}
-  .tb-l h1#page-title{font-size:15px;}
-  .tb-l .tbs{display:none;}
-  .tb-r{flex-wrap:wrap;justify-content:flex-end;gap:6px;}
-  .pc{padding:12px 10px;}
-  .sg.g2,.sg.g3,.sg.g4,.fgrid,.perfis-grid{grid-template-columns:1fr!important;}
-  .kanban{grid-template-columns:repeat(6,200px)!important;}
-  .tbl{display:block;overflow-x:auto;white-space:nowrap;max-width:100%;}
-  #mo{padding:8px;}
-  #mwrap{max-width:100%;}
-  #mbody{padding:16px;}
-  .login-box{padding:22px;}
-  .alu-pc{padding:14px 14px;}
-}
-
 /* ══ VARIÁVEIS ══ */
 :root{
   --cr:#791428;--cd:#461017;--cp:#F7C6D3;--crose:#BC5572;--ccream:#FDFBF6;
@@ -289,6 +266,29 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
   content:'';flex:1;height:1px;background:rgba(121,20,40,.12);
 }
 .login-divider span{font-size:11px;color:var(--crose);font-weight:600;text-transform:uppercase;letter-spacing:.08em;}
+
+/* ══ RESPONSIVO / CELULAR (tem que ficar por último, pra vencer as regras de cima) ══ */
+@media (max-width:860px){
+  .btn-menu-mobile{display:inline-flex!important;align-items:center;justify-content:center;}
+  .sb{position:fixed!important;top:0;left:0;height:100%;width:78vw!important;min-width:0!important;max-width:270px;transform:translateX(-100%);transition:transform .25s ease;z-index:999;box-shadow:4px 0 24px rgba(0,0,0,.25);}
+  body.sb-open .sb{transform:translateX(0);}
+  #sb-backdrop{display:none;position:fixed;inset:0;background:rgba(20,6,9,.45);z-index:998;}
+  body.sb-open #sb-backdrop{display:block;}
+  .mw{width:100%;}
+  .topbar{padding:0 10px;height:50px;}
+  .tb-l h1#page-title{font-size:15px;}
+  .tb-l .tbs{display:none;}
+  .tb-r{flex-wrap:wrap;justify-content:flex-end;gap:6px;}
+  .pc{padding:12px 10px;}
+  .sg.g2,.sg.g3,.sg.g4,.fgrid,.perfis-grid{grid-template-columns:1fr!important;}
+  .kanban{grid-template-columns:repeat(6,200px)!important;}
+  .tbl{display:block;overflow-x:auto;white-space:nowrap;max-width:100%;}
+  #mo{padding:8px;}
+  #mwrap{max-width:100%;}
+  #mbody{padding:16px;}
+  .login-box{padding:22px;}
+  .alu-pc{padding:14px 14px;}
+}
 </style>
 </head>
 <body>
@@ -573,7 +573,7 @@ async function carregarDados(){
           var localTid=Object.keys(_teacherIdMap).find(function(k){
             return _teacherIdMap[k]===r.teacher_id && k!==r.teacher_id;
           });
-          HORARIOS[key]={tipo:r.tipo||'fixo',alunoId:r.aluno_id||'',teacherId:localTid||r.teacher_id||'',obs:r.obs||''};
+          HORARIOS[key]={tipo:r.tipo||'fixo',alunoId:r.aluno_id||'',teacherId:localTid||r.teacher_id||'',obs:r.obs||'',nomeTurma:r.nome_turma||''};
         });
       }
     }catch(e){console.warn('Erro carregar horários:',e);}
@@ -793,7 +793,7 @@ async function salvarHorarioDB(key, slot){
     var tUUID=await resolveTeacherId(tId)||null;
     var r=await sb.from('horarios').upsert({
       id:key,teacher_id:tUUID,aluno_id:slot.alunoId||null,
-      dia_semana:dia,hora:hora,tipo:slot.tipo||'fixo',obs:slot.obs||''
+      dia_semana:dia,hora:hora,tipo:slot.tipo||'fixo',obs:slot.obs||'',nome_turma:slot.nomeTurma||null
     });
     if(r.error){ console.warn('Erro salvar horário:',r.error.message); showToast('⚠️ Horário NÃO salvou no banco: '+r.error.message); }
   }catch(e){console.warn('Erro salvar horário:',e);showToast('⚠️ Horário NÃO salvou no banco.');}
@@ -2306,6 +2306,8 @@ function openCadastrarAluna(){
     +'<select id="ca-ddi" style="width:95px"><option value="+55">🇧🇷 +55</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option><option value="+351">🇵🇹 +351</option><option value="+34">🇪🇸 +34</option><option value="+33">🇫🇷 +33</option><option value="+49">🇩🇪 +49</option><option value="+39">🇮🇹 +39</option><option value="+61">🇦🇺 +61</option><option value="+52">🇲🇽 +52</option><option value="+54">🇦🇷 +54</option><option value="+57">🇨🇴 +57</option><option value="+598">🇺🇾 +598</option><option value="+56">🇨🇱 +56</option></select>'
     +'<input id="ca-tel" placeholder="Número" style="flex:1"></div></div>'
     +'<div class="fg"><label>Senha de acesso</label><input type="password" id="ca-senha" placeholder="Crie uma senha para ela"></div></div>'
+    +'<div class="fgrid"><div class="fg"><label>CPF</label><input id="ca-cpf" placeholder="Só números"></div>'
+    +'<div class="fg"><label>Endereço</label><input id="ca-endereco" placeholder="Rua, número, bairro..."></div></div>'
     +'<div class="fst">Dados pedagógicos</div>'
     +'<div class="fgrid"><div class="fg"><label>Nível</label><select id="ca-nivel"><option value="A1">A1 — Iniciante</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option></select></div>'
     +'<div class="fg"><label>Teacher responsável</label><select id="ca-teacher">'+tOpts+'</select></div></div>'
@@ -2501,6 +2503,8 @@ function salvarAluna(){
   var aulasSemana=parseInt((document.getElementById('ca-aulas-semana')||{value:'1'}).value)||1;
   var newAl={id:newId,nome:nome,email:email,ddi:ddiEl?ddiEl.value:'+55',
     tel:(document.getElementById('ca-tel').value||''),senha:senha,
+    cpf:(document.getElementById('ca-cpf')||{value:''}).value.trim(),
+    endereco:(document.getElementById('ca-endereco')||{value:''}).value.trim(),
     nivel:document.getElementById('ca-nivel').value,teacherId:tid,
     tipo:tipo,aulasSemana:aulasSemana,plano:document.getElementById('ca-plano').value,valor:valor,valorCheio:valorCheio,desconto:desconto,
     venc:parseInt(document.getElementById('ca-venc').value),
@@ -2781,9 +2785,9 @@ function renderHorarios(c,a){
           var a=ALUNOS.find(function(x){return x.id===aid;});
           return a?a.nome.split(' ')[0]:null;
         }).filter(Boolean);
-        var nm=nomesSl.length?(nomesSl.length>2?nomesSl[0]+' +'+(nomesSl.length-1):nomesSl.join(', ')):'—';
+        var nm=sl.nomeTurma?sl.nomeTurma:(nomesSl.length?(nomesSl.length>2?nomesSl[0]+' +'+(nomesSl.length-1):nomesSl.join(', ')):'—');
         var lbl=tiposLabel[sl.tipo]+(nomesSl.length>1?' · '+nomesSl.length+' alunas':'');
-        tbl+='<td><div class="slot '+sl.tipo+'" data-slotkey="'+key+'" title="'+nomesSl.join(', ')+'"><div class="slot-nome">'+nm+'</div><div class="slot-tipo">'+lbl+'</div></div></td>';
+        tbl+='<td><div class="slot '+sl.tipo+'" data-slotkey="'+key+'" title="'+(sl.nomeTurma?sl.nomeTurma+' — ':'')+nomesSl.join(', ')+'"><div class="slot-nome">'+nm+'</div><div class="slot-tipo">'+lbl+'</div></div></td>';
       } else {
         tbl+='<td><div class="slot" data-slotdia="'+d+'" data-slothora="'+hora+'"></div></td>';
       }
@@ -2827,6 +2831,7 @@ function openAddSlot(dia,hora){
         +'<input type="checkbox" class="hs-aluno-chk" value="'+al.id+'" style="width:15px;height:15px;flex-shrink:0"> '+al.nome+'</label>';
     }).join(''):'<div style="font-size:12px;color:var(--crose)">Nenhuma aluna atribuída a essa teacher ainda.</div>')
     +'</div></div></div>'
+    +'<div class="fg"><label>Nome da turma <span style="font-weight:400;color:var(--crose)">(opcional — aparece no lugar dos nomes quando preenchido)</span></label><input id="hs-nome-turma" placeholder="Ex: Turma PEG, Turma Quinta 20h..."></div>'
     +'<div class="fg"><label>Observações</label><input id="hs-obs" placeholder="Obs..."></div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="salvarSlot()">Salvar</button></div>');
@@ -2848,6 +2853,7 @@ function openEditSlot(key){
         +'<input type="checkbox" class="hs-aluno-chk" value="'+al.id+'"'+(slotTemAluno(sl,al.id)?' checked':'')+' style="width:15px;height:15px;flex-shrink:0"> '+al.nome+'</label>';
     }).join(''):'<div style="font-size:12px;color:var(--crose)">Nenhuma aluna atribuída a essa teacher ainda.</div>')
     +'</div></div></div>'
+    +'<div class="fg"><label>Nome da turma <span style="font-weight:400;color:var(--crose)">(opcional — aparece no lugar dos nomes quando preenchido)</span></label><input id="hs-nome-turma" value="'+(sl.nomeTurma||'')+'" placeholder="Ex: Turma PEG, Turma Quinta 20h..."></div>'
     +'<div class="fg"><label>Observações</label><input id="hs-obs" value="'+(sl.obs||'')+'"></div>'
     +'<div class="mftr"><button class="btn btn-ghost" style="color:var(--crose)" onclick="excluirSlot()"><i class="ti ti-trash"></i> Excluir</button>'
     +'<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
@@ -2867,7 +2873,8 @@ function salvarSlot(){
   var newSlot={tipo:document.getElementById('hs-tipo').value,
     alunoId:lerAlunasSlot(),
     teacherId:_horarioTeacherId||'',
-    obs:document.getElementById('hs-obs').value};
+    obs:document.getElementById('hs-obs').value,
+    nomeTurma:(document.getElementById('hs-nome-turma')||{value:''}).value.trim()};
   HORARIOS[key]=newSlot;
   salvarHorarioDB(key,newSlot);
   closeModal();showToast('Horário salvo! ✅');
@@ -2880,6 +2887,7 @@ function atualizarSlot(){
   HORARIOS[key].tipo=document.getElementById('hs-tipo').value;
   HORARIOS[key].alunoId=lerAlunasSlot();
   HORARIOS[key].obs=document.getElementById('hs-obs').value;
+  HORARIOS[key].nomeTurma=(document.getElementById('hs-nome-turma')||{value:''}).value.trim();
   salvarHorarioDB(key,HORARIOS[key]);
   closeModal();showToast('Horário atualizado! ✅');
   renderHorarios(document.getElementById('pc'),document.getElementById('tb-actions'));
@@ -4607,7 +4615,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.F';
+var BUILD_VERSAO='v19.out.G';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
