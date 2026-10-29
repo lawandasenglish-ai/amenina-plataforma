@@ -612,7 +612,9 @@ function mapAluno(r){
     avisoCancelamento:r.aviso_cancelamento||false,avisoCancelamentoData:r.aviso_cancelamento_data||null,comentarios:[],
     valorManual:r.valor_manual||false,
     cpf:r.cpf||'',asaasCustomerId:r.asaas_customer_id||null,asaasSubscriptionId:r.asaas_subscription_id||null,
-    cobrancaAutomatica:r.cobranca_automatica||false,asaasLink:r.asaas_link||null};
+    cobrancaAutomatica:r.cobranca_automatica||false,asaasLink:r.asaas_link||null,
+    cobrancaCanceladaRef:r.cobranca_cancelada_ref||null,
+    ajusteValorMesRef:r.ajuste_valor_mes_ref||null,ajusteValorMesValor:(r.ajuste_valor_mes_valor!=null?parseFloat(r.ajuste_valor_mes_valor):null)};
 }
 function mapTeacher(r){
   return {id:r.id,nome:r.nome,email:r.email||'',ativo:r.ativo!==false,saidaEm:r.saida_em||null,
@@ -676,6 +678,9 @@ async function salvarAlunaDB(al){
       plano_html:al.planoHtml||null,plano_progresso:JSON.stringify(al.planoProgresso||[]),
       valor_manual:al.valorManual||false,
       cpf:al.cpf||null,
+      cobranca_cancelada_ref:al.cobrancaCanceladaRef||null,
+      ajuste_valor_mes_ref:al.ajusteValorMesRef||null,
+      ajuste_valor_mes_valor:al.ajusteValorMesValor!=null?al.ajusteValorMesValor:null,
     };
     // Se tem ID local (nao uuid), buscar pelo nome no banco
     if(al.id && al.id.length===36) payload.id=al.id;
@@ -3466,10 +3471,24 @@ function renderRetencao(c,a){
 function alunosVencimentos(){
   return ALUNOS.filter(function(a){return isPagante(a)&&a.status!=='Pausado';});
 }
+// "YYYY-MM" do mês atual — usado pra saber se um ajuste/cancelamento pontual ainda vale este mês.
+function mesRefAtual(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+// Valor que vale pra cobrança deste mês: 0 se a cobrança foi cancelada este mês,
+// senão o ajuste pontual se ele for deste mês, senão o valor normal.
+function valorEfetivoMes(al){
+  if(al.cobrancaCanceladaRef===mesRefAtual()) return 0;
+  if(al.ajusteValorMesRef===mesRefAtual()&&al.ajusteValorMesValor!=null) return al.ajusteValorMesValor;
+  return parseFloat(al.valor)||0;
+}
 function renderVencimentos(c,a){
   atualizarDiasInadimplente();
+  var mesRef=mesRefAtual();
   var lista=alunosVencimentos();
-  var previstoTotal=lista.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
+  var previstoTotal=lista.reduce(function(s,al){return s+valorEfetivoMes(al);},0);
+  var canceladasQtd=lista.filter(function(al){return al.cobrancaCanceladaRef===mesRef;}).length;
   var inadimplentes=lista.filter(function(al){return al.fin==='Atrasado';}).length;
   // Agrupar por vencimento (inclui qualquer dia fora dos padrões num grupo "Outros")
   var grupos=VENC.slice();
@@ -3483,27 +3502,41 @@ function renderVencimentos(c,a){
   grupos.forEach(function(v){porVenc[v].sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});});
   outros.sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});
   function linhaAluna(al){
+    var canceladaMes=al.cobrancaCanceladaRef===mesRef;
+    var temAjusteMes=!canceladaMes&&al.ajusteValorMesRef===mesRef&&al.ajusteValorMesValor!=null;
     var badge=al.desconto>0?'<span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;margin-left:4px">-'+al.desconto+'%</span>':'';
-    var valorStr='R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'');
+    var ajusteBadge=temAjusteMes?'<span style="font-size:10px;background:#dbeafe;color:#1e40af;border-radius:4px;padding:1px 5px;margin-left:4px">só este mês</span>':'';
+    var canceladaBadge=canceladaMes?'<span style="font-size:10px;background:#f3f4f6;color:#6b7280;border-radius:4px;padding:1px 5px;margin-left:4px">cobrança cancelada</span>':'';
+    var valorStr;
+    if(canceladaMes){
+      valorStr='<span style="color:#9ca3af">— sem cobrança este mês</span>';
+    } else {
+      var valorEfetivo=valorEfetivoMes(al);
+      valorStr='R$ '+valorEfetivo+(temAjusteMes?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valor+'</span>':(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':''));
+    }
     var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
+    var acoes=canceladaMes
+      ?'<button class="btn btn-ghost btn-sm" onclick="reativarCobrancaMes(\''+al.id+'\')"><i class="ti ti-player-play"></i> Reativar cobrança</button>'
+      :('<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
+        +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="alterarValorMes(\''+al.id+'\')" title="Dar desconto ou mudar o valor só este mês">💰 Valor só este mês</button>'
+        +(temAjusteMes?'<button class="btn btn-ghost btn-sm" onclick="limparAjusteValorMes(\''+al.id+'\')" title="Remover o ajuste e voltar ao valor normal">↺ Desfazer ajuste</button>':'')
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelarCobrancaMes(\''+al.id+'\')" style="color:var(--crose)" title="Não cobra essa aluna este mês (ela continua aparecendo na lista)">🚫 Cancelar cobrança (mês)</button>');
     return '<tr>'
-      +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+diasBadge+'</td>'
-      +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>'+bdgFin(al)+'</td><td>'+bdg(al.status)+'</td>'
-      +'<td style="display:flex;gap:4px">'
-      +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
-      +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
-      +'</td></tr>';
+      +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+ajusteBadge+canceladaBadge+diasBadge+'</td>'
+      +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>'+(canceladaMes?'—':bdgFin(al))+'</td><td>'+bdg(al.status)+'</td>'
+      +'<td style="display:flex;gap:4px;flex-wrap:wrap">'+acoes+'</td></tr>';
   }
   var tabelaHtml='';
   grupos.forEach(function(v){
     var gr=porVenc[v];
     if(!gr||!gr.length) return;
-    var subtotal=gr.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
+    var subtotal=gr.reduce(function(s,al){return s+valorEfetivoMes(al);},0);
     tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+' · '+gr.length+' aluna(s) · previsto R$ '+subtotal.toLocaleString('pt-BR')+'</td></tr>';
     tabelaHtml+=gr.map(linhaAluna).join('');
   });
   if(outros.length){
-    var subtotalO=outros.reduce(function(s,al){return s+(parseFloat(al.valor)||0);},0);
+    var subtotalO=outros.reduce(function(s,al){return s+valorEfetivoMes(al);},0);
     tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Outros vencimentos · '+outros.length+' aluna(s) · previsto R$ '+subtotalO.toLocaleString('pt-BR')+'</td></tr>';
     tabelaHtml+=outros.map(linhaAluna).join('');
   }
@@ -3512,9 +3545,49 @@ function renderVencimentos(c,a){
     +'<div class="sc"><div class="sl">Previsto no total</div><div class="sv">R$ '+previstoTotal.toLocaleString('pt-BR')+'</div></div>'
     +'<div class="sc warn"><div class="sl">Em atraso/inadimplentes</div><div class="sv">'+inadimplentes+'</div></div>'
     +'</div>'
+    +(canceladasQtd?'<div style="font-size:12px;color:var(--crose);margin-bottom:10px">🚫 '+canceladasQtd+' aluna(s) com cobrança cancelada este mês (aparecem na lista, sem valor).</div>':'')
     +'<div class="card"><div class="ch"><i class="ti ti-calendar-dollar"></i><h3>Vencimentos — previsão de recebimento</h3></div>'
     +(tabelaHtml?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Financeiro</th><th>Status</th><th></th></tr>'+tabelaHtml+'</table>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna nessa lista.</div>')+'</div>';
+}
+async function cancelarCobrancaMes(id){
+  var al=ALUNOS.find(function(a){return a.id===id;});
+  if(!al) return;
+  if(!confirm('Cancelar a cobrança de '+al.nome+' só este mês? Ela sai da lista de Vencimentos deste mês e volta a cobrar normalmente no mês que vem.')) return;
+  al.cobrancaCanceladaRef=mesRefAtual();
+  await salvarAlunaDB(al);
+  showToast('Cobrança deste mês cancelada para '+al.nome+'.');
+  renderVencimentos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+async function reativarCobrancaMes(id){
+  var al=ALUNOS.find(function(a){return a.id===id;});
+  if(!al) return;
+  al.cobrancaCanceladaRef=null;
+  await salvarAlunaDB(al);
+  showToast('Cobrança reativada para '+al.nome+'.');
+  renderVencimentos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+async function alterarValorMes(id){
+  var al=ALUNOS.find(function(a){return a.id===id;});
+  if(!al) return;
+  var atual=valorEfetivoMes(al);
+  var novo=prompt('Novo valor de '+al.nome+' só para este mês (no mês que vem volta pro normal, R$ '+al.valor+'):',String(atual));
+  if(novo===null) return;
+  var v=parseFloat(novo.replace(',','.'));
+  if(isNaN(v)||v<0){ showToast('Valor inválido.'); return; }
+  al.ajusteValorMesRef=mesRefAtual();
+  al.ajusteValorMesValor=v;
+  await salvarAlunaDB(al);
+  showToast('Valor deste mês ajustado para R$ '+v+' ✅');
+  renderVencimentos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+async function limparAjusteValorMes(id){
+  var al=ALUNOS.find(function(a){return a.id===id;});
+  if(!al) return;
+  al.ajusteValorMesRef=null; al.ajusteValorMesValor=null;
+  await salvarAlunaDB(al);
+  showToast('Ajuste removido — valor voltou ao normal este mês.');
+  renderVencimentos(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
 function renderPagamentos(soloInadimplentes){
@@ -4674,7 +4747,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.I';
+var BUILD_VERSAO='v19.out.K';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
