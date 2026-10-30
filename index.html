@@ -4613,7 +4613,8 @@ function renderJogos(c,a){
            +'<td style="font-size:11px;color:var(--crose)">'+nomesLib+'</td>'
            +'<td style="display:flex;gap:4px">'
            +'<button class="btn btn-ghost btn-sm" onclick="jogarJogo(\''+j.id+'\')"><i class="ti ti-player-play"></i> Testar</button>'
-           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" onclick="openLiberarJogo(\''+j.id+'\')"><i class="ti ti-user-plus"></i> Liberar</button>':'')
+           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" onclick="liberarJogoTodos(\''+j.id+'\')"><i class="ti ti-users"></i> Liberar para todos</button>':'')
+           +(podeGerenciar?'<button class="btn btn-ghost btn-sm" onclick="openLiberarJogo(\''+j.id+'\')"><i class="ti ti-user-plus"></i> Escolher</button>':'')
            +(podeGerenciar?'<button class="btn btn-ghost btn-sm" style="color:var(--crose)" onclick="removerJogo(\''+j.id+'\')"><i class="ti ti-trash"></i></button>':'')
            +'</td></tr>';
        }).join('')+'</table>'
@@ -4624,7 +4625,7 @@ function renderJogos(c,a){
 function openAdicionarJogo(){
   var html='<div class="mhdr"><h2>Adicionar jogo</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div class="fg"><label>Título</label><input id="jog-titulo" placeholder="Ex: Caça-palavras — Present Simple"></div>'
-    +'<div class="fg"><label>Nível</label><select id="jog-nivel"><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option></select></div>'
+    +'<div class="fg"><label>Nível</label><select id="jog-nivel"><option>Todos os níveis</option><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option></select></div>'
     +'<div class="fg"><label>Arquivo do jogo (.html)</label>'
     +'<label class="btn btn-ghost" style="cursor:pointer;display:inline-flex;margin:0"><i class="ti ti-upload"></i> Escolher arquivo HTML'
     +'<input type="file" accept=".html,text/html" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;z-index:-1" onchange="lerArquivoJogo(event)"></label>'
@@ -4669,7 +4670,9 @@ function openLiberarJogo(jogoId){
     :ALUNOS;
   var html='<div class="mhdr"><h2>Liberar — '+j.titulo+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
     +'<div style="padding:14px 0"><div style="font-size:12px;font-weight:700;color:var(--crose);margin-bottom:10px">Selecione os alunos que terão acesso:</div>'
-    +'<div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto">'
+    +'<div style="display:flex;gap:6px;margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="document.querySelectorAll(\'#jog-lista input\').forEach(function(i){i.checked=true})">Marcar todos</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="document.querySelectorAll(\'#jog-lista input\').forEach(function(i){i.checked=false})">Desmarcar todos</button></div>'
+    +'<div id="jog-lista" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto">'
     +byName(meusAlunos).map(function(al){
       var checked=(j.liberadoPara||[]).includes(al.id);
       return '<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(121,20,40,.03);cursor:pointer">'
@@ -4687,11 +4690,26 @@ function openLiberarJogo(jogoId){
 async function salvarLiberacaoJogo(jogoId){
   var j=JOGOS.find(function(x){return x.id===jogoId;});
   if(!j) return;
-  var checks=document.querySelectorAll('input[type=checkbox]:not(#na-reposicao)');
+  var checks=document.querySelectorAll('#jog-lista input[type=checkbox]');
   j.liberadoPara=Array.from(checks).filter(function(c){return c.checked&&c.value!=='on';}).map(function(c){return c.value;});
   await salvarJogoDB(j);
   showToast('Acesso atualizado! ✅');
   closeModal();
+  renderJogos(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+
+async function liberarJogoTodos(jogoId){
+  var j=JOGOS.find(function(x){return x.id===jogoId;});
+  if(!j) return;
+  var alvo=S.perfil==='teacher'
+    ?ALUNOS.filter(function(a){var tid=_teacherIdMap[S.teacherId]||S.teacherId;return a.teacherId===tid||a.teacherId===S.teacherId;})
+    :ALUNOS.filter(function(a){return a.status!=='Cancelado';});
+  if(!confirm('Liberar "'+j.titulo+'" para '+alvo.length+' alunos?')) return;
+  var set={};(j.liberadoPara||[]).forEach(function(id){set[id]=1;});
+  alvo.forEach(function(a){set[a.id]=1;});
+  j.liberadoPara=Object.keys(set);
+  await salvarJogoDB(j);
+  showToast('Jogo liberado para todos! ✅');
   renderJogos(document.getElementById('pc'),document.getElementById('tb-actions'));
 }
 
@@ -4743,7 +4761,7 @@ function renderAluJogos(c){
          return '<div style="background:rgba(121,20,40,.04);border-radius:10px;padding:16px;border:1px solid rgba(121,20,40,.1)">'
            +'<i class="ti ti-device-gamepad-2" style="font-size:28px;color:var(--cr);display:block;margin-bottom:8px"></i>'
            +'<div style="font-size:13px;font-weight:700;color:var(--cd);margin-bottom:4px">'+j.titulo+'</div>'
-           +'<div style="font-size:11px;color:var(--crose);margin-bottom:12px">Nível '+j.nivel+'</div>'
+           +'<div style="font-size:11px;color:var(--crose);margin-bottom:12px">'+(j.nivel==='Todos os níveis'?'Todos os níveis':'Nível '+j.nivel)+'</div>'
            +'<button class="btn btn-primary btn-sm" style="width:100%" onclick="jogarJogo(\''+j.id+'\')"><i class="ti ti-player-play"></i> Jogar</button>'
            +'</div>';
        }).join('')+'</div>'
@@ -4795,7 +4813,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.Q';
+var BUILD_VERSAO='v19.out.R';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
