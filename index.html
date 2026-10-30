@@ -638,6 +638,7 @@ function mapAluno(r){
     avisoCancelamento:r.aviso_cancelamento||false,avisoCancelamentoData:r.aviso_cancelamento_data||null,comentarios:[],
     valorManual:r.valor_manual||false,
     sexo:r.sexo||'',
+    contratoMeses:r.contrato_meses||0,contratoInicio:r.contrato_inicio||'',contratoFim:r.contrato_fim||'',
     cpf:r.cpf||'',asaasCustomerId:r.asaas_customer_id||null,asaasSubscriptionId:r.asaas_subscription_id||null,
     cobrancaAutomatica:r.cobranca_automatica||false,asaasLink:r.asaas_link||null,
     cobrancaCanceladaRef:r.cobranca_cancelada_ref||null,
@@ -706,6 +707,7 @@ async function salvarAlunaDB(al){
       valor_manual:al.valorManual||false,
       cpf:al.cpf||null,
       sexo:al.sexo||null,
+      contrato_meses:al.contratoMeses||null,contrato_inicio:al.contratoInicio||null,contrato_fim:al.contratoFim||null,
       cobranca_cancelada_ref:al.cobrancaCanceladaRef||null,
       ajuste_valor_mes_ref:al.ajusteValorMesRef||null,
       ajuste_valor_mes_valor:al.ajusteValorMesValor!=null?al.ajusteValorMesValor:null,
@@ -2108,6 +2110,47 @@ function renderAlertasPresenca(){
   }
   return html+'</div>';
 }
+// ── Contratos ──
+function contratoOpts(sel){
+  sel=parseInt(sel)||0;
+  return '<option value=""'+(!sel?' selected':'')+'>Manual / não definido</option>'
+    +[3,6,12].map(function(m){return '<option value="'+m+'"'+(sel===m?' selected':'')+'>'+m+' meses</option>';}).join('');
+}
+function contratoAddMeses(iso,n){
+  var p=iso.split('-');var y=+p[0],m=+p[1]-1+n,d=+p[2];
+  var last=new Date(y,m+1,0).getDate();
+  var dt=new Date(y,m,Math.min(d,last));
+  return dt.getFullYear()+'-'+('0'+(dt.getMonth()+1)).slice(-2)+'-'+('0'+dt.getDate()).slice(-2);
+}
+function contratoRecalc(pf){
+  var m=parseInt(document.getElementById(pf+'-contrato-meses').value)||0;
+  var ini=document.getElementById(pf+'-contrato-inicio').value;
+  if(m&&ini) document.getElementById(pf+'-contrato-fim').value=contratoAddMeses(ini,m);
+}
+function renderLembreteContratos(){
+  var mes=hojeISO().slice(0,7), hoje=hojeISO();
+  var lista=ALUNOS.filter(function(a){return a.contratoFim&&a.status!=='Cancelado'&&a.status!=='Desaparecido'&&a.contratoFim.slice(0,7)<=mes;})
+    .sort(function(a,b){return a.contratoFim.localeCompare(b.contratoFim);});
+  if(!lista.length) return '';
+  return '<div class="card warn"><div class="ch"><i class="ti ti-file-certificate"></i><h3>📄 Contratos vencendo neste mês ('+lista.length+')</h3></div>'
+    +'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Vence em</th><th>Situação</th><th></th></tr>'
+    +lista.map(function(al){
+      var venceu=al.contratoFim<hoje;
+      return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.plano+'</td><td>'+fmtDateBr(al.contratoFim)+'</td>'
+        +'<td>'+(venceu?'<span class="badge badge-err">Vencido</span>':'<span class="badge badge-warn">Vence este mês</span>')+'</td>'
+        +'<td><button class="btn btn-ghost btn-sm" onclick="renovarContrato(\''+al.id+'\')">🔄 Renovar</button></td></tr>';
+    }).join('')+'</table></div>';
+}
+function renovarContrato(id){
+  var al=ALUNOS.find(function(a){return a.id===id;});if(!al) return;
+  var m=parseInt(prompt('Renovar por quantos meses? (3, 6 ou 12)','12'));
+  if([3,6,12].indexOf(m)<0){showToast('Escolha 3, 6 ou 12.');return;}
+  var base=(al.contratoFim&&al.contratoFim>hojeISO())?al.contratoFim:hojeISO();
+  al.contratoMeses=m;al.contratoInicio=base;al.contratoFim=contratoAddMeses(base,m);
+  salvarAlunaDB(al);
+  showToast('Contrato renovado até '+fmtDateBr(al.contratoFim)+' ✅');
+  goPage(S.page||'dashboard');
+}
 function renderDashboard(c,a){
   var now=new Date();
   var welcome='<div style="margin-bottom:16px"><div style="font-size:13px;color:var(--crose)">Bem-vinda de volta,</div><div style="font-family:var(--font-serif);font-size:28px;color:var(--cd)">'+S.userName+'! 👋</div></div>';
@@ -2122,6 +2165,7 @@ function renderDashboard(c,a){
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'<div class="sc '+(urgAlta.length?'warn':'ok')+'"><div class="sl">Notas urgentes</div><div class="sv">'+urgAlta.length+'</div></div>'
       +'</div>'
+      +renderLembreteContratos()
       +(atrasadas.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>⚠️ Inadimplentes</h3></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th></tr>'
         +atrasadas.slice(0,5).map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+al.plano+'</td><td>R$'+al.valor+'</td><td>Dia '+al.venc+'</td></tr>';}).join('')
@@ -2183,6 +2227,7 @@ function renderDashboard(c,a){
         +inad.slice(0,5).sort(function(a,b){return (b.diasInadimplente||0)-(a.diasInadimplente||0);}
         ).map(function(al){return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>R$ '+al.valor+'</td><td>'+(al.diasInadimplente||0)+'d</td></tr>';}).join('')
         +'</table></div>':'')
+      +renderLembreteContratos()
       +renderAlertasPresenca();
   } else {
     c.innerHTML=welcome
@@ -2191,6 +2236,7 @@ function renderDashboard(c,a){
       +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+ALUNOS.filter(function(a){return a.fin==='Atrasado'&&isPagante(a);}).length+'</div></div>'
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'</div>'
+      +(S.perfil==='comercial'?renderLembreteContratos():'')
       +(S.perfil!=='comercial'?renderAlertasPresenca():'');
   }
 }
@@ -2367,6 +2413,11 @@ function openCadastrarAluna(){
     +'<div class="fg"><label>Valor final (R$)</label><input type="number" id="ca-valor-final" placeholder="0" readonly style="background:#f0fff4;font-weight:700;cursor:not-allowed"></div>'
     +'<div class="fg"><label>Vencimento</label><select id="ca-venc">'+vOpts+'</select></div>'
     +'<div class="fg"><label>Status financeiro</label><select id="ca-fin"><option value="Pendente">Pendente</option><option value="Pago">Pago</option><option value="Atrasado">Atrasado</option></select></div></div>'
+    +'<div class="fst">Contrato</div>'
+    +'<div class="fgrid"><div class="fg"><label>Duração</label><select id="ca-contrato-meses" onchange="contratoRecalc(\'ca\')">'+contratoOpts('')+'</select></div>'
+    +'<div class="fg"><label>Início do contrato</label><input type="date" id="ca-contrato-inicio" value="'+hojeISO()+'" onchange="contratoRecalc(\'ca\')"></div>'
+    +'<div class="fg"><label>Vencimento do contrato</label><input type="date" id="ca-contrato-fim" value="'+''+'"></div></div>'
+    +'<div style="font-size:10px;color:var(--crose);margin:-4px 0 10px">Escolha 3, 6 ou 12 meses para calcular a data, ou digite a data de vencimento manualmente (para alunos que já temos).</div>'
     +'<div class="mftr"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" onclick="salvarAluna()">Cadastrar aluna</button></div>';
   openModal(html);
@@ -2556,6 +2607,9 @@ function salvarAluna(){
     tipo:tipo,aulasSemana:aulasSemana,plano:document.getElementById('ca-plano').value,valor:valor,valorCheio:valorCheio,desconto:desconto,
     venc:parseInt(document.getElementById('ca-venc').value),
     fin:document.getElementById('ca-fin').value,status:'Ativo',
+    contratoMeses:parseInt((document.getElementById('ca-contrato-meses')||{value:''}).value)||0,
+    contratoInicio:(document.getElementById('ca-contrato-inicio')||{value:''}).value||'',
+    contratoFim:(document.getElementById('ca-contrato-fim')||{value:''}).value||'',
     faltas:0,freq:100,risco:'low',matricula:new Date().toLocaleDateString('pt-BR'),
     nfEmitida:false,fichaUrl:null,planoHtml:null,planoProgresso:[],comentarios:[]};
   ALUNOS.push(newAl);
@@ -2596,6 +2650,7 @@ function salvarAluna(){
         nivel:newAl.nivel,teacherId:newAl.teacherId,aulasSemana:newAl.aulasSemana,
         tipo:'dupla',plano:newAl.plano,valor:valorDupla,valorCheio:Math.round(valorCheio/2),
         desconto:newAl.desconto,venc:newAl.venc,fin:newAl.fin,status:newAl.status,
+        contratoMeses:newAl.contratoMeses,contratoInicio:newAl.contratoInicio,contratoFim:newAl.contratoFim,
         faltas:0,freq:100,risco:'low',matricula:newAl.matricula,
         nfEmitida:false,comentarios:[]};
       ALUNOS.push(newAl2);
@@ -2672,6 +2727,9 @@ function openEditAluna(id){
     +'<option value="Atrasado"'+(al.fin==='Atrasado'?' selected':'')+'>Atrasado</option>'
     +'</select></div>'
     +'<div class="fg"><label>CPF</label><input id="ea-cpf" value="'+(al.cpf||'')+'" placeholder="Só números"></div>'
+    +'<div class="fg"><label>Duração do contrato</label><select id="ea-contrato-meses" onchange="contratoRecalc(\'ea\')">'+contratoOpts(al.contratoMeses)+'</select></div>'
+    +'<div class="fg"><label>Início do contrato</label><input type="date" id="ea-contrato-inicio" value="'+(al.contratoInicio||'')+'" onchange="contratoRecalc(\'ea\')"></div>'
+    +'<div class="fg"><label>Vencimento do contrato</label><input type="date" id="ea-contrato-fim" value="'+(al.contratoFim||'')+'"></div>'
     +(al.valorManual?'<div class="fg" style="display:flex;align-items:center;gap:8px;padding-top:22px">'
       +'<input type="checkbox" id="ea-valor-destravar" style="width:16px;height:16px">'
       +'<label style="margin:0;font-size:11px" for="ea-valor-destravar">Voltar a calcular o valor automaticamente (desconto/atraso)</label></div>':'')
@@ -2745,6 +2803,11 @@ function salvarEditAluna(){
   }
   if(g('ea-valor-destravar')&&g('ea-valor-destravar').checked) al.valorManual=false;
   if(g('ea-cpf')) al.cpf=g('ea-cpf').value.trim();
+  if(g('ea-contrato-fim')){
+    al.contratoMeses=parseInt(g('ea-contrato-meses').value)||0;
+    al.contratoInicio=g('ea-contrato-inicio').value||'';
+    al.contratoFim=g('ea-contrato-fim').value||'';
+  }
   if(g('ea-venc')) al.venc=parseInt(g('ea-venc').value)||al.venc;
   if(g('ea-fin')){
     var finAnt=al.fin;
@@ -3725,19 +3788,31 @@ function calcDiasAtraso(dataAtraso){
 function atualizarDiasInadimplente(){
   var hoje=new Date();
   ALUNOS.forEach(function(al){
+    // Autocorreção: marcado "Atrasado" por engano (antes do vencimento deste mês) mas que PAGOU o mês anterior volta a "Pendente".
+    if(al.fin==='Atrasado'&&al.status==='Ativo'&&hoje.getDate()<=Math.min(parseInt(al.venc)||10,new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate())){
+      var mesAtualISO=hojeISO().slice(0,7);
+      var pd=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);
+      var mesAntISO=pd.getFullYear()+'-'+('0'+(pd.getMonth()+1)).slice(-2);
+      var pagouAnt=PAGAMENTOS.some(function(p){return p.alunoId===al.id&&(p.data||'').slice(0,7)===mesAntISO;});
+      var pagouAtual=PAGAMENTOS.some(function(p){return p.alunoId===al.id&&(p.data||'').slice(0,7)===mesAtualISO;});
+      if(pagouAnt&&!pagouAtual){
+        al.fin='Pendente';al.dataAtraso=null;al.diasInadimplente=0;
+        salvarAlunaDB(al);
+        return;
+      }
+    }
     if(al.fin==='Atrasado'&&al.dataAtraso){
       al.diasInadimplente=calcDiasAtraso(al.dataAtraso);
       return;
     }
     // Escalonamento automático: se ninguém marcou "Pago" e já passou do dia de vencimento,
     // vira "Atrasado" sozinho — não depende mais de alguém clicar em "Atrasar" na tela.
+    // Regra: quem pagou o mês anterior começa o mês EM DIA. Só vira "Atrasado" depois
+    // do dia de vencimento DO MÊS ATUAL, se o pagamento não foi registrado.
+    var ultDia=new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate();
+    var vencMes=Math.min(parseInt(al.venc)||10,ultDia);
     if(al.fin==='Pendente'&&al.status==='Ativo'&&isPagante(al)){
-      var venc=parseInt(al.venc)||10;
-      var diasDesdeVenc=hoje.getDate()-venc;
-      if(diasDesdeVenc<0){
-        var diasMesAnterior=new Date(hoje.getFullYear(),hoje.getMonth(),0).getDate();
-        diasDesdeVenc+=diasMesAnterior;
-      }
+      var diasDesdeVenc=hoje.getDate()-vencMes;
       if(diasDesdeVenc>0){
         al.fin='Atrasado';
         al.dataAtraso=new Date(hoje.getTime()-diasDesdeVenc*86400000).toISOString().split('T')[0];
@@ -4014,6 +4089,7 @@ function abrirPerfilAlunoCoord(alunoId){
        +'<div class="sc"><div class="sl">Plano</div><div class="sv" style="font-size:14px">'+al.plano+'</div></div>'
        +'<div class="sc"><div class="sl">Mensalidade</div><div class="sv" style="font-size:14px">R$ '+parseFloat(al.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2})+'</div></div>'
        +'<div class="sc '+(al.fin==='Atrasado'?'warn':al.fin==='Pago'?'ok':'')+'" ><div class="sl">Status fin.</div><div style="margin-top:6px">'+bdgFin(al)+'</div></div>'
+       +'<div class="sc"><div class="sl">Contrato até</div><div class="sv" style="font-size:14px">'+(al.contratoFim?fmtDateBr(al.contratoFim):'Não informado')+'</div>'+(al.contratoMeses?'<div class="ss">'+al.contratoMeses+' meses</div>':'')+'</div>'
        +'</div>'
       :'')
     // Histórico de aulas
@@ -4813,7 +4889,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.R';
+var BUILD_VERSAO='v19.out.S';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
