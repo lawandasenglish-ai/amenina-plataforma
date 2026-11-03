@@ -613,6 +613,7 @@ function mapAluno(r){
     avisoCancelamento:r.aviso_cancelamento||false,avisoCancelamentoData:r.aviso_cancelamento_data||null,comentarios:[],
     valorManual:r.valor_manual||false,
     sexo:r.sexo||'',
+    bloqueioSolicitado:!!r.bloqueio_solicitado,bloqueioPor:r.bloqueio_por||'',bloqueioEm:r.bloqueio_em||'',bloqueioMotivo:r.bloqueio_motivo||'',aulasBloqueadas:!!r.aulas_bloqueadas,
     contratoMeses:r.contrato_meses||0,contratoInicio:r.contrato_inicio||'',contratoFim:r.contrato_fim||'',
     cpf:r.cpf||'',asaasCustomerId:r.asaas_customer_id||null,asaasSubscriptionId:r.asaas_subscription_id||null,
     cobrancaAutomatica:r.cobranca_automatica||false,asaasLink:r.asaas_link||null,
@@ -682,6 +683,7 @@ async function salvarAlunaDB(al){
       valor_manual:al.valorManual||false,
       cpf:al.cpf||null,
       sexo:al.sexo||null,
+      bloqueio_solicitado:al.bloqueioSolicitado||false,bloqueio_por:al.bloqueioPor||null,bloqueio_em:al.bloqueioEm||null,bloqueio_motivo:al.bloqueioMotivo||null,aulas_bloqueadas:al.aulasBloqueadas||false,
       contrato_meses:al.contratoMeses||null,contrato_inicio:al.contratoInicio||null,contrato_fim:al.contratoFim||null,
       cobranca_cancelada_ref:al.cobrancaCanceladaRef||null,
       ajuste_valor_mes_ref:al.ajusteValorMesRef||null,
@@ -1138,6 +1140,7 @@ var NAVS={
     {id:'pausadas',l:'Pausadas/Canceladas',ic:'ti-user-pause',n:function(){return alunosInativas().length;}},
     {id:'aulas',l:'Registrar Aulas',ic:'ti-book'},
     {id:'frequencia',l:'Frequência',ic:'ti-calendar-check'},
+    {id:'meufin',l:'Meu Financeiro',ic:'ti-cash'},
     {s:'Materiais'},
     {id:'extras',l:'Aulas Extras',ic:'ti-video'},
     {id:'livros',l:'Biblioteca de Livros',ic:'ti-book-2'},
@@ -1149,7 +1152,7 @@ var TITLES={dashboard:'Dashboard',usuarios:'Gestão de Usuários',horarios:'Grad
   alunos:'Alunos',retencao:'Retenção',crm:'CRM — Leads',funil:'Funil de Vendas',
   matriculas:'Matrículas',metas:'Metas',aulas:'Relatórios de Aulas',teachers:'Teachers',
   reunioes:'Reuniões',frequencia:'Frequência',extras:'Aulas Extras',pagamentos:'Pagamentos',
-  vencimentos:'Vencimentos',inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
+  meufin:'Meu Financeiro',vencimentos:'Vencimentos',inadimplencia:'Inadimplência',negativacao:'Negativação',nf:'Notas Fiscais',planos:'Planos de Estudo',notas:'Minhas Notas',tarefas:'Tarefas',relatorios:'Relatórios & Analytics',livros:'Biblioteca de Livros',jogos:'Jogos',pausadas:'Pausadas & Canceladas'};
 
 function buildNav(){
   document.body.classList.toggle('pf-gestao',S.perfil==='gestao');
@@ -1190,7 +1193,7 @@ function goPage(id){
   var pages={
     dashboard:renderDashboard,usuarios:renderUsuarios,alunos:renderAlunos,
     crm:renderCRM,funil:renderFunil,matriculas:renderMatriculas,metas:renderMetas,
-    teachers:renderTeachers,vencimentos:renderVencimentos,pagamentos:function(){renderPagamentos(false);},
+    teachers:renderTeachers,vencimentos:renderVencimentos,meufin:renderMeuFinanceiro,pagamentos:function(){renderPagamentos(false);},
     inadimplencia:function(){renderPagamentos(true);},
   negativacao:renderNegativacao,
   planos:renderPlanos,nf:renderNF,
@@ -2126,6 +2129,100 @@ function renovarContrato(id){
   showToast('Contrato renovado até '+fmtDateBr(al.contratoFim)+' ✅');
   goPage(S.page||'dashboard');
 }
+// ── FINANCEIRO DA TEACHER (só o repasse dela; nunca o valor que o aluno paga) ──
+function alunosDaTeacherLogada(){
+  var tid=_teacherIdMap[S.teacherId]||S.teacherId;
+  return ALUNOS.filter(function(a){return a.teacherId===tid||a.teacherId===S.teacherId;});
+}
+function repasseAluno(al,pct){
+  return Math.round(valorEfetivoMes(al)*pct)/100;
+}
+function statusFinTeacher(al){
+  if(al.aulasBloqueadas) return '<span class="badge badge-err">Aulas bloqueadas</span>';
+  if(al.fin==='Pago') return '<span class="badge badge-ok">Pago</span>';
+  if(al.status==='Pausado-Inadimplencia') return '<span class="badge badge-err">Pausado (inadimplência)</span>';
+  if(al.fin==='Atrasado') return (al.diasInadimplente||0)>5
+    ?'<span class="badge badge-err">Inadimplente</span>'
+    :'<span class="badge badge-warn">Em atraso</span>';
+  return '<span class="badge badge-gray">Em dia</span>';
+}
+function renderMeuFinanceiro(c,a){
+  atualizarDiasInadimplente();
+  var pct=getPercentualTeacher(S.teacherId);
+  var lista=alunosDaTeacherLogada().filter(function(al){return isPagante(al)&&al.status!=='Pausado';});
+  var previsto=lista.reduce(function(s,al){return s+repasseAluno(al,pct);},0);
+  var recebido=lista.filter(function(al){return al.fin==='Pago';}).reduce(function(s,al){return s+repasseAluno(al,pct);},0);
+  var emAtraso=lista.filter(function(al){return al.fin==='Atrasado';}).reduce(function(s,al){return s+repasseAluno(al,pct);},0);
+  var brl=function(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var porVenc={};
+  lista.forEach(function(al){var v=parseInt(al.venc)||10;(porVenc[v]=porVenc[v]||[]).push(al);});
+  var dias=Object.keys(porVenc).map(Number).sort(function(x,y){return x-y;});
+  c.innerHTML='<div class="sg g4">'
+    +'<div class="sc"><div class="sl">Previsto no mês</div><div class="sv">'+brl(previsto)+'</div><div class="ss">'+pct+'% por aluno</div></div>'
+    +'<div class="sc ok"><div class="sl">Já confirmado</div><div class="sv">'+brl(recebido)+'</div></div>'
+    +'<div class="sc"><div class="sl">Aguardando</div><div class="sv">'+brl(previsto-recebido-emAtraso)+'</div></div>'
+    +'<div class="sc '+(emAtraso?'warn':'')+'"><div class="sl">Em atraso</div><div class="sv">'+brl(emAtraso)+'</div></div>'
+    +'</div>'
+    +(dias.length?dias.map(function(d){
+      var g=porVenc[d].sort(function(x,y){return x.nome.localeCompare(y.nome,'pt');});
+      var tot=g.reduce(function(s,al){return s+repasseAluno(al,pct);},0);
+      return '<div class="card"><div class="ch"><i class="ti ti-calendar-dollar"></i><h3>Vencimento dia '+d+'</h3>'
+        +'<span style="margin-left:auto;font-size:12px;color:var(--crose)">'+g.length+' aluno'+(g.length===1?'':'s')+' · Total do dia: <strong>'+brl(tot)+'</strong></span></div>'
+        +'<table class="tbl"><tr><th>Aluno</th><th>Situação</th><th>Você recebe</th><th></th></tr>'
+        +g.map(function(al){
+          var acao=al.aulasBloqueadas?''
+            :al.bloqueioSolicitado?'<span style="font-size:11px;color:var(--crose)">Bloqueio solicitado</span>'
+            :'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="solicitarBloqueioAulas(this.dataset.alid)">🚫 Solicitar bloqueio de aulas</button>';
+          return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+statusFinTeacher(al)+'</td><td>'+brl(repasseAluno(al,pct))+'</td><td>'+acao+'</td></tr>';
+        }).join('')+'</table></div>';
+    }).join(''):'<div class="card" style="text-align:center;padding:40px;color:var(--crose)">Nenhum aluno com cobrança neste mês.</div>')
+    +'<div style="font-size:11px;color:var(--crose);padding:4px 2px 16px">O valor "Você recebe" é o seu repasse sobre a mensalidade de cada aluno. Fica confirmado quando o pagamento é registrado.</div>';
+}
+function solicitarBloqueioAulas(alId){
+  var al=ALUNOS.find(function(x){return x.id===alId;});if(!al) return;
+  var motivo=prompt('Solicitar bloqueio das aulas de '+al.nome+'.\nMotivo (opcional):','Mensalidade em atraso');
+  if(motivo===null) return;
+  al.bloqueioSolicitado=true;al.bloqueioPor=S.userName||'Teacher';
+  al.bloqueioEm=hojeISO();al.bloqueioMotivo=(motivo||'').trim();
+  salvarAlunaDB(al);
+  showToast('Pedido enviado para a diretoria ✅');
+  renderMeuFinanceiro(document.getElementById('pc'),document.getElementById('tb-actions'));
+}
+// Diretoria: lista de pedidos e de alunos com aulas bloqueadas
+function renderSolicitacoesBloqueio(){
+  var pend=ALUNOS.filter(function(a){return a.bloqueioSolicitado&&!a.aulasBloqueadas;});
+  var bloq=ALUNOS.filter(function(a){return a.aulasBloqueadas;});
+  if(!pend.length&&!bloq.length) return '';
+  var tn=function(al){return (getTeacher(al.teacherId)||{}).nome||'-';};
+  return (pend.length?'<div class="card warn"><div class="ch"><i class="ti ti-ban"></i><h3>🚫 Pedidos de bloqueio de aulas ('+pend.length+')</h3></div>'
+    +'<table class="tbl"><tr><th>Aluno</th><th>Teacher</th><th>Situação</th><th>Motivo</th><th></th></tr>'
+    +pend.map(function(al){
+      return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+(al.bloqueioPor||tn(al))+'<div style="font-size:10px;color:#999">'+(al.bloqueioEm?fmtDateBr(al.bloqueioEm):'')+'</div></td>'
+        +'<td>'+bdgFin(al)+'</td><td style="font-size:11px">'+(al.bloqueioMotivo||'-')+'</td>'
+        +'<td style="display:flex;gap:4px"><button class="btn btn-primary btn-sm" data-alid="'+al.id+'" onclick="decidirBloqueio(this.dataset.alid,true)">Bloquear aulas</button>'
+        +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="decidirBloqueio(this.dataset.alid,false)">Recusar</button></td></tr>';
+    }).join('')+'</table></div>':'')
+    +(bloq.length?'<div class="card"><div class="ch"><i class="ti ti-lock"></i><h3>Aulas bloqueadas ('+bloq.length+')</h3></div>'
+    +'<table class="tbl"><tr><th>Aluno</th><th>Teacher</th><th>Situação</th><th></th></tr>'
+    +bloq.map(function(al){
+      return '<tr><td class="nm" data-alid="'+al.id+'">'+al.nome+'</td><td>'+tn(al)+'</td><td>'+bdgFin(al)+'</td>'
+        +'<td><button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" onclick="desbloquearAulas(this.dataset.alid)">🔓 Desbloquear</button></td></tr>';
+    }).join('')+'</table></div>':'');
+}
+function decidirBloqueio(alId,aprovar){
+  var al=ALUNOS.find(function(x){return x.id===alId;});if(!al) return;
+  if(aprovar) al.aulasBloqueadas=true; else {al.bloqueioSolicitado=false;al.bloqueioMotivo='';}
+  salvarAlunaDB(al);
+  showToast(aprovar?'Aulas bloqueadas 🔒':'Pedido recusado.');
+  goPage(S.page||'dashboard');
+}
+function desbloquearAulas(alId){
+  var al=ALUNOS.find(function(x){return x.id===alId;});if(!al) return;
+  al.aulasBloqueadas=false;al.bloqueioSolicitado=false;al.bloqueioMotivo='';
+  salvarAlunaDB(al);
+  showToast('Aulas desbloqueadas 🔓');
+  goPage(S.page||'dashboard');
+}
 function renderDashboard(c,a){
   var now=new Date();
   var welcome='<div style="margin-bottom:16px"><div style="font-size:13px;color:var(--crose)">Bem-vinda de volta,</div><div style="font-family:var(--font-serif);font-size:28px;color:var(--cd)">'+S.userName+'! 👋</div></div>';
@@ -2140,6 +2237,7 @@ function renderDashboard(c,a){
       +'<div class="sc"><div class="sl">Leads</div><div class="sv">'+LEADS.length+'</div></div>'
       +'<div class="sc '+(urgAlta.length?'warn':'ok')+'"><div class="sl">Notas urgentes</div><div class="sv">'+urgAlta.length+'</div></div>'
       +'</div>'
+      +renderSolicitacoesBloqueio()
       +renderLembreteContratos()
       +(atrasadas.length?'<div class="card warn"><div class="ch"><i class="ti ti-alert-triangle"></i><h3>⚠️ Inadimplentes</h3></div>'
         +'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th></tr>'
@@ -4864,7 +4962,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.S-normal';
+var BUILD_VERSAO='v19.out.T';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
