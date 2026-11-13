@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" translate="no">
 <head>
 <meta charset="UTF-8">
+<meta name="google" content="notranslate">
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAADuElEQVR42u2WXWxUVRDHZ84591737jZdt7UWWlr6QZp2q6kFlUA1EqtABQ3RRPFNiVGeygMJJgYkmJBojEGNmtQHY4AQE0004aNbyqZFpCukLoR2V2tJW22FhVI2dPfu7r3nw4dC3W7FRpo+GJnch3te5jf/OTNzBrljwUIagQW2u4D/FEAptZAARKZpAGpBAIhEZOyJ38aQsGwdSikl5XwBUkhCjaGe3q9e20GIhlneqaYx3XVHAKWmI0VQANB78Nv+js6hnhDVXFJIJSXTjMnY1cuRKCL+G4BSUgiklGoaEhQOp5pr7Pz5vu8ChmGe/OgLAFRSMt09fnH47P5v+g53jp2LUGbcLlc5AEUY0wyPk0pbE3GecXRXHhI6HPqJaMxwe6LtXb+Hw7or73I0+kPb/oKKJZILavzT5bPs2AFp+kayffeeaKArk7BKG/wVqx/OLylatmbVZGw8sGcfEtLTdlDf5r54smfdzu3B9z+pbHpkkb+O2xkkZA6AlFIzzM533zux71Ndd6/d2dq09dXktfHTbQckF0tXNpo+r7BtJeXImd7Vr78S7QhWrFpR07yGOxYSnFsBAgJALPKrYXgMt9v/zJPuAp+dmnzoxY2FlVWD3d8XVJaVNNTVND/W8MJz/Uc6lBT1G1u4nbxd7FNGd+16a7pwCGVGnhk9GkxMXLs+8scDm9YNh3qLa6vzigqLa2vdhV4nlW7aumUg2I0IdS1r5/QOADjjwVGKaq6rg4OxgcHF/jrNNEbDfbVPNzvpSarpPx/vthOWk7YvXYiaPm/zjlZuJ5DQ7EEyu2RJTsty27qvurK+Zb2vfMnxvR8bpgkKqKZb8fhYuJ8Zxmj4wrmvjwTe+fDKwC+UuW5WJwLTdMrY7GL9K0W3ECi5I4XjpFJFNVWF1eWEISAQQvIXF5etaORpK/T5IaTEmog/uGmD4DYSoqS6EbuihDQ8+Uo6AFk6uGP97Sd4SikpRDrrKLidVEp17P2gFYu3m0sjxwJKKW6nh0Jn3i5r3F2xvO9wu5TcySSm/eQqmDmFnJlHjgBSOMueeJwaLBroGjhxqvGlZ02vz1taghROHfpSJeXyzc9PyZp72OXcGCICIiJw23rqzW1vHD3gvt/32fqXh38866TSdtIy7/Gt3LJZKYlZKcI7W1ukEJrhkSITORa8PjJ6b3lpfPRSVdOji+r9wrEA5w2YYhBKKZsa1w6ABiC5ncrpDJzX4qVASgEASIiSEhFn9x2b14uOQOjNRsNbP3f3ov8f4E87rezuunLlagAAAABJRU5ErkJggg==">
 <link rel="icon" type="image/png" sizes="16x16" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAABo0lEQVR42rWSPWhUQRSF752ZN/uW3c2LmIgEImxiKxqSYBS0sBfBQizS26bRyka0sbcQC0tjygRiUAJahFgZEMUEVhB/kBAMbpLd2fdm7txrsfEHjGIKT30/DvfwIQUH+4mCfWYPQESE5d8B0cYYawEEAH4nfwIcIxMhmq3P6x9fvES0gGhsikrtASBiUqomaU1pu3zvwezVW0qbfGvnzcKi+9pUWovsVpnufQy08nAm324NnZmIPjSePl99spjWqpvvPtRPjYoI/mhgitqka4+f3Zm8nA0cDs4Nnz1ZPz0WOnm5t2fk0vlyb8ZEgLuIQa2Y/eDY8QtT10u1yoEjA4Ojx7xzTJEKX+07RN4Za2MIXQYpOABR2iDa9bXVclZLs54vjfdz124qra88mi7azeDySv9BJgIAoOAoOPJt39lmzmPMQ9ESkY3G2xv18aW7932nffvEudfzCyLs853vkyEqY5iiREalQtHqPzo0tTzb2tj8tPJqfPJi33CdmVAp/JNLwmysBUiKdrNUyQA4UgGA+Bf5RESYdZJ0V8Jfnv6ftn4DRCjUurYvhSIAAAAASUVORK5CYII=">
 <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
@@ -16,7 +17,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Red+Hat+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ══ RELATÓRIOS ══ */
@@ -289,6 +289,36 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--cbg);color:v
   #mbody{padding:16px;}
   .login-box{padding:22px;}
   .alu-pc{padding:14px 14px;}
+}
+
+/* ══ Jogos e Plano de estudos (aluno) — celular e tablet ══ */
+.jogos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:0 16px 16px;}
+.jogo-card{background:linear-gradient(160deg,rgba(121,20,40,.06),rgba(121,20,40,.02));border:1px solid rgba(121,20,40,.12);border-radius:16px;padding:18px 14px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;cursor:pointer;transition:transform .15s,box-shadow .15s;-webkit-tap-highlight-color:transparent;}
+.jogo-card:active{transform:scale(.97);}
+.jogo-ico{width:56px;height:56px;border-radius:16px;background:var(--cr);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:4px;}
+.jogo-tit{font-size:14px;font-weight:700;color:var(--cd);line-height:1.25;word-break:break-word;}
+.jogo-nv{font-size:11px;color:var(--crose);background:rgba(121,20,40,.07);border-radius:99px;padding:2px 10px;}
+.jogo-btn{width:100%;justify-content:center;margin-top:8px;padding:11px;font-size:14px;}
+#jogo-overlay{position:fixed;inset:0;z-index:4000;background:#fff;display:flex;flex-direction:column;}
+.jogo-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));background:var(--cr);color:#fff;flex-shrink:0;}
+.jogo-bar-tit{flex:1;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.jogo-fechar{background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:99px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;font-family:inherit;}
+#jogo-frame{flex:1;width:100%;border:none;background:#fff;}
+.plano-head{padding:14px 18px;border-bottom:1px solid rgba(121,20,40,.1);display:flex;align-items:center;gap:12px;}
+.plano-frame{width:100%;height:82vh;border:none;display:block;background:#fff;}
+.plano-card.plano-full{position:fixed;inset:0;z-index:3500;border-radius:0!important;background:#fff;display:flex;flex-direction:column;}
+.plano-card.plano-full .plano-frame{flex:1;height:auto;}
+@media(max-width:860px){
+  .plano-head{flex-wrap:wrap;padding:10px 12px;gap:8px;}
+  .plano-head>div:first-child{flex:1 1 100%;order:-1;}
+  .plano-frame{height:calc(100dvh - 210px);min-height:420px;}
+  .plano-card{border-radius:12px;}
+}
+@media(max-width:600px){
+  .jogos-grid{grid-template-columns:1fr 1fr;gap:10px;padding:0 10px 12px;}
+  .jogo-card{padding:14px 10px 10px;border-radius:14px;}
+  .jogo-ico{width:48px;height:48px;font-size:26px;}
+  .jogo-tit{font-size:13px;}
 }
 </style>
 </head>
@@ -585,6 +615,7 @@ async function carregarDados(){
     await carregarJogosDB();
     await carregarModulosExtrasDB();
     virarMesFinanceiro();
+    aplicarCancelamentosAutomaticos();
   }catch(e){ console.warn('Supabase offline:',e); }
 }
 
@@ -2782,7 +2813,7 @@ function openEditAluna(id){
     +'<div class="fgrid"><div class="fg" style="display:flex;align-items:center;gap:8px;padding-top:22px">'
     +'<input type="checkbox" id="ea-aviso-cancel" style="width:16px;height:16px"'+(al.avisoCancelamento?' checked':'')+'>'
     +'<label style="margin:0;font-size:12px" for="ea-aviso-cancel">Avisou que este será o último mês</label></div>'
-    +'<div class="fg"><label>Data do aviso</label><input type="date" id="ea-aviso-data" value="'+(al.avisoCancelamentoData||'')+'"></div></div>'
+    +'<div class="fg"><label>Data do aviso</label><input type="date" id="ea-aviso-data" value="'+(al.avisoCancelamentoData||'')+'"><div style="font-size:10px;color:var(--crose);margin-top:3px">30 dias depois desta data a matrícula é cancelada automaticamente.</div></div></div>'
     +(S.perfil==='teacher'?'':(''
     +'<div class="fst">Financeiro</div>'
     +'<div class="fgrid"><div class="fg"><label>Plano</label><select id="ea-plano">'
@@ -2863,6 +2894,7 @@ function salvarEditAluna(){
   if(g('ea-status')) al.status=g('ea-status').value;
   if(g('ea-aviso-cancel')) al.avisoCancelamento=g('ea-aviso-cancel').checked;
   if(g('ea-aviso-data')) al.avisoCancelamentoData=g('ea-aviso-data').value||null;
+  if(al.avisoCancelamento&&!al.avisoCancelamentoData) al.avisoCancelamentoData=hojeISO();
   if(g('ea-plano')) al.plano=g('ea-plano').value;
   if(g('ea-pais')) al.pais=g('ea-pais').value;
   if(g('ea-endereco')) al.endereco=g('ea-endereco').value;
@@ -3695,18 +3727,20 @@ function renderVencimentos(c,a){
     var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
     var acoes;
     if(canceladaMes){
-      acoes='<button class="btn btn-ghost btn-sm" onclick="reativarCobrancaMes(\''+al.id+'\')"><i class="ti ti-player-play"></i> Reativar</button>';
+      acoes='<button class="btn btn-ghost btn-sm" onclick="reativarCobrancaMes(\''+al.id+'\')"><i class="ti ti-player-play"></i> Reativar</button>'
+        +'<div style="margin-top:4px">'+'<button class="btn btn-ghost btn-sm" onclick="cancelarMatricula(\''+al.id+'\')" style="color:#991b1b" title="Cancelar a matrícula desta aluna">❌ Cancelar matrícula</button>'+'</div>';
     } else {
       var linha1='';
       if(al.fin!=='Pago') linha1+='<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>';
       linha1+='<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>';
       var linha2='<button class="btn btn-ghost btn-sm" onclick="alterarValorMes(\''+al.id+'\')" title="Dar desconto ou mudar o valor só este mês">💰 Valor do mês</button>'
         +(temAjusteMes?'<button class="btn btn-ghost btn-sm" onclick="limparAjusteValorMes(\''+al.id+'\')" title="Remover o ajuste e voltar ao valor normal">↺ Desfazer</button>':'')
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelarCobrancaMes(\''+al.id+'\')" style="color:var(--crose)" title="Não cobra essa aluna este mês (ela continua aparecendo na lista)">🚫 Cancelar mês</button>';
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelarCobrancaMes(\''+al.id+'\')" style="color:var(--crose)" title="Não cobra essa aluna este mês (ela continua aparecendo na lista)">🚫 Cancelar mês</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelarMatricula(\''+al.id+'\')" style="color:#991b1b" title="Cancelar a matrícula desta aluna">❌ Cancelar matrícula</button>';
       acoes='<div style="display:flex;gap:4px;flex-wrap:wrap">'+linha1+'</div>'
         +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+linha2+'</div>';
     }
-    return '<tr>'
+    return '<tr'+finRowAttrs(al)+'>'
       +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+ajusteBadge+canceladaBadge+diasBadge+'</td>'
       +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>'+(canceladaMes?'—':bdgFin(al))+'</td><td>'+bdg(al.status)+'</td>'
       +'<td style="min-width:160px">'+acoes+'</td></tr>';
@@ -3716,12 +3750,12 @@ function renderVencimentos(c,a){
     var gr=porVenc[v];
     if(!gr||!gr.length) return;
     var subtotal=gr.reduce(function(s,al){return s+valorEfetivoMes(al);},0);
-    tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+' · '+gr.length+' aluna(s) · previsto R$ '+subtotal.toLocaleString('pt-BR')+'</td></tr>';
+    tabelaHtml+='<tr class="fin-head"><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+' · '+gr.length+' aluna(s) · previsto R$ '+subtotal.toLocaleString('pt-BR')+'</td></tr>';
     tabelaHtml+=gr.map(linhaAluna).join('');
   });
   if(outros.length){
     var subtotalO=outros.reduce(function(s,al){return s+valorEfetivoMes(al);},0);
-    tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Outros vencimentos · '+outros.length+' aluna(s) · previsto R$ '+subtotalO.toLocaleString('pt-BR')+'</td></tr>';
+    tabelaHtml+='<tr class="fin-head"><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Outros vencimentos · '+outros.length+' aluna(s) · previsto R$ '+subtotalO.toLocaleString('pt-BR')+'</td></tr>';
     tabelaHtml+=outros.map(linhaAluna).join('');
   }
   c.innerHTML='<div class="sg g3">'
@@ -3730,6 +3764,7 @@ function renderVencimentos(c,a){
     +'<div class="sc warn"><div class="sl">Em atraso/inadimplentes</div><div class="sv">'+inadimplentes+'</div></div>'
     +'</div>'
     +(canceladasQtd?'<div style="font-size:12px;color:var(--crose);margin-bottom:10px">🚫 '+canceladasQtd+' aluna(s) com cobrança cancelada este mês (aparecem na lista, sem valor).</div>':'')
+    +barraFiltroFin()
     +'<div class="card"><div class="ch"><i class="ti ti-calendar-dollar"></i><h3>Vencimentos — previsão de recebimento</h3></div>'
     +(tabelaHtml?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Financeiro</th><th>Status</th><th></th></tr>'+tabelaHtml+'</table>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna nessa lista.</div>')+'</div>';
@@ -3807,17 +3842,18 @@ function renderPagamentos(soloInadimplentes){
   grupos.forEach(function(v){
     var gr=porVenc[v];
     if(!gr||!gr.length) return;
-    tabelaHtml+='<tr><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+'</td></tr>';
+    tabelaHtml+='<tr class="fin-head"><td colspan="6" style="background:rgba(121,20,40,.07);font-weight:700;font-size:12px;padding:8px 12px;color:var(--cr)">📅 Vencimento dia '+v+'</td></tr>';
     gr.forEach(function(al){
       var badge=al.desconto>0?'<span style="font-size:10px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;margin-left:4px">-'+al.desconto+'%</span>':'';
       var valorStr='R$ '+al.valor+(al.desconto>0?' <span style="font-size:10px;color:#aaa;text-decoration:line-through">R$'+al.valorCheio+'</span>':'');
       var diasBadge=al.fin==='Atrasado'&&al.diasInadimplente?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px">'+al.diasInadimplente+'d</span>':'';
-      tabelaHtml+='<tr>'
+      tabelaHtml+='<tr'+finRowAttrs(al)+'>'
         +'<td class="nm" data-alid="'+al.id+'">'+al.nome+badge+diasBadge+'</td>'
         +'<td>'+al.plano+'</td><td>'+valorStr+'</td><td>Dia '+al.venc+'</td><td>'+bdgFin(al)+'</td>'
         +'<td style="display:flex;gap:4px">'
         +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Pago" onclick="marcarPgto(this)">✅ Pago</button>'
         +'<button class="btn btn-ghost btn-sm" data-alid="'+al.id+'" data-fin="Atrasado" onclick="marcarPgto(this)" style="color:var(--crose)">⚠️ Atrasar</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelarMatricula(\''+al.id+'\')" style="color:#991b1b" title="Cancelar a matrícula desta aluna">❌ Cancelar matrícula</button>'
         +'</td></tr>';
     });
   });
@@ -3826,6 +3862,7 @@ function renderPagamentos(soloInadimplentes){
     +'<div class="sc"><div class="sl">Previsto</div><div class="sv">R$ '+previsto.toLocaleString('pt-BR')+'</div></div>'
     +'<div class="sc warn"><div class="sl">Inadimplentes</div><div class="sv">'+inadimplentes+'</div></div>'
     +'</div>'
+    +barraFiltroFin()
     +'<div class="card"><div class="ch"><i class="ti ti-cash"></i><h3>'+(soloInadimplentes?'Inadimplentes':'Mensalidades')+'</h3></div>'
     +(tabelaHtml?'<table class="tbl"><tr><th>Aluna</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr>'+tabelaHtml+'</table>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)">Nenhuma aluna no fluxo.</div>')+'</div>';
@@ -3858,7 +3895,68 @@ function calcDiasAtraso(dataAtraso){
   return Math.floor((hoje-d)/(1000*60*60*24));
 }
 // Atualizar dias inadimplente de todos os alunos ao carregar
+// ── Filtros (busca + situação) para as telas do financeiro ──
+function finKey(al){
+  if(al.status==='Pausado-Inadimplencia') return 'pausadoinad';
+  if(al.fin==='Pago') return 'pago';
+  if(al.fin==='Atrasado') return (al.diasInadimplente||0)>5?'inad':'atraso';
+  return 'emdia';
+}
+function finRowAttrs(al){
+  return ' class="fin-row" data-nome="'+String(al.nome||'').toLowerCase().replace(/"/g,'&quot;')+'" data-st="'+finKey(al)+'" data-av="'+(al.avisoCancelamento?'1':'0')+'"';
+}
+function barraFiltroFin(){
+  return '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'
+    +'<div style="position:relative;flex:1;min-width:200px">'
+    +'<i class="ti ti-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--crose);font-size:15px"></i>'
+    +'<input type="text" id="fin-busca" oninput="filtrarFinLinhas()" placeholder="Buscar aluno pelo nome..." style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid rgba(121,20,40,.15);border-radius:9px;font-size:13px;font-family:var(--font-sans);background:var(--ccard);color:var(--cd)">'
+    +'</div>'
+    +'<select id="fin-filtro" onchange="filtrarFinLinhas()" style="padding:9px 12px;border:1.5px solid rgba(121,20,40,.15);border-radius:9px;font-size:13px;font-family:var(--font-sans);background:var(--ccard);color:var(--cd)">'
+    +'<option value="">Todos</option><option value="pago">Pago</option><option value="emdia">Em dia</option>'
+    +'<option value="atraso">Em atraso</option><option value="inad">Inadimplente</option>'
+    +'<option value="pausadoinad">Pausado (inadimplência)</option><option value="aviso">Avisou cancelamento</option>'
+    +'</select></div>';
+}
+function filtrarFinLinhas(){
+  var t=((document.getElementById('fin-busca')||{}).value||'').toLowerCase().trim();
+  var f=(document.getElementById('fin-filtro')||{}).value||'';
+  var tbl=document.querySelector('#pc table.tbl'); if(!tbl) return;
+  var head=null,vis=0;
+  function fecha(){ if(head) head.style.display=vis?'':'none'; }
+  Array.prototype.forEach.call(tbl.querySelectorAll('tr'),function(tr){
+    if(tr.classList.contains('fin-head')){ fecha(); head=tr; vis=0; return; }
+    if(!tr.classList.contains('fin-row')) return;
+    var ok=true;
+    if(t&&(tr.dataset.nome||'').indexOf(t)===-1) ok=false;
+    if(ok&&f){ ok=(f==='aviso')?tr.dataset.av==='1':tr.dataset.st===f; }
+    tr.style.display=ok?'':'none';
+    if(ok) vis++;
+  });
+  fecha();
+}
+// Cancelar a matrícula direto do financeiro
+async function cancelarMatricula(id){
+  var al=ALUNOS.find(function(a){return a.id===id;}); if(!al) return;
+  if(!confirm('Cancelar a matrícula de '+al.nome+'? Ela sai da cobrança e vai para "Pausadas/Canceladas" (dá para reativar depois).')) return;
+  al.status='Cancelado';
+  if(!al.avisoCancelamento){ al.avisoCancelamento=true; al.avisoCancelamentoData=hojeISO(); }
+  await salvarAlunaDB(al);
+  showToast('Matrícula de '+al.nome+' cancelada.');
+  goPage(S.page||'vencimentos');
+}
+// Aviso de cancelamento: 30 dias depois da data do aviso, a matrícula passa a "Cancelado" sozinha.
+function aplicarCancelamentosAutomaticos(){
+  var hoje=hojeISO(), n=0;
+  ALUNOS.forEach(function(al){
+    if(!al.avisoCancelamento||!al.avisoCancelamentoData||al.status==='Cancelado') return;
+    var lim=new Date(al.avisoCancelamentoData+'T12:00:00'); lim.setDate(lim.getDate()+30);
+    var limISO=lim.getFullYear()+'-'+('0'+(lim.getMonth()+1)).slice(-2)+'-'+('0'+lim.getDate()).slice(-2);
+    if(hoje>=limISO){ al.status='Cancelado'; salvarAlunaDB(al); n++; }
+  });
+  if(n) setTimeout(function(){showToast('🗓 '+n+' matrícula'+(n===1?'':'s')+' cancelada'+(n===1?'':'s')+' automaticamente (30 dias após o aviso).');},1200);
+}
 function atualizarDiasInadimplente(){
+  aplicarCancelamentosAutomaticos();
   var hoje=new Date();
   ALUNOS.forEach(function(al){
     // Autocorreção: marcado "Atrasado" por engano (antes do vencimento deste mês) mas que PAGOU o mês anterior volta a "Pendente".
@@ -4503,6 +4601,12 @@ function renderAluProgresso(c){
     +'</div></div>';
 }
 
+function alternarPlanoTelaCheia(){
+  var card=document.getElementById('plano-card'); if(!card) return;
+  var on=card.classList.toggle('plano-full');
+  document.body.style.overflow=on?'hidden':'';
+  var b=document.getElementById('plano-full-btn'); if(b) b.textContent=on?'✕':'⛶';
+}
 function renderAluPlano(c){
   var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
   if(!al||!al.planoHtml){
@@ -4514,8 +4618,8 @@ function renderAluPlano(c){
   }
   var prog=al.planoProgresso||[];
   var pct=al.planoHtml?Math.round(prog.length/30*100):0;
-  c.innerHTML='<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="padding:14px 18px;border-bottom:1px solid rgba(121,20,40,.1);display:flex;align-items:center;gap:12px">'
+  c.innerHTML='<div class="card plano-card" id="plano-card" style="padding:0;overflow:hidden">'
+    +'<div class="plano-head">'
     +'<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--cr);margin-bottom:4px">📚 Meu Plano de Estudos</div>'
     +'<div style="background:rgba(121,20,40,.1);border-radius:99px;height:6px;overflow:hidden">'
     +'<div id="plano-pct-fill" style="background:var(--cr);height:100%;border-radius:99px;width:'+pct+'%;transition:width .4s"></div></div></div>'
@@ -4524,8 +4628,9 @@ function renderAluPlano(c){
     +'<button class="btn btn-ghost btn-sm" onclick="ajustarZoomPlano(-0.1)" title="Diminuir">A−</button>'
     +'<span id="plano-zoom-lbl" style="font-size:11px;color:var(--crose);min-width:34px;text-align:center">'+Math.round(_planoZoom*100)+'%</span>'
     +'<button class="btn btn-ghost btn-sm" onclick="ajustarZoomPlano(0.1)" title="Aumentar">A+</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="alternarPlanoTelaCheia()" title="Tela cheia" id="plano-full-btn">⛶</button>'
     +'</div></div>'
-    +'<iframe id="plano-frame" style="width:100%;height:82vh;border:none" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>'
+    +'<iframe id="plano-frame" class="plano-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>'
     +'</div>';
   // Injetar HTML no iframe + sincronizar progresso
   setTimeout(function(){
@@ -4538,6 +4643,12 @@ function renderAluPlano(c){
     if(planoMod.indexOf('name="viewport"')===-1&&planoMod.indexOf("name='viewport'")===-1){
       planoMod=planoMod.replace(/<head([^>]*)>/i,'<head$1><meta name="viewport" content="width=device-width, initial-scale=1">');
     }
+    // Ajustes de leitura em celular/tablet (não altera o conteúdo do plano)
+    var cssMob='<style id="amenina-mob">html{-webkit-text-size-adjust:100%;}img,video,svg,canvas{max-width:100%;height:auto;}'
+      +'body{overflow-x:hidden;word-wrap:break-word;overflow-wrap:anywhere;}'
+      +'@media(max-width:820px){body{padding-left:12px!important;padding-right:12px!important;}table{display:block;max-width:100%;overflow-x:auto;}'
+      +'button,a,input,select,label{min-height:36px;}}</style>';
+    planoMod=/<\/head>/i.test(planoMod)?planoMod.replace(/<\/head>/i,cssMob+'</head>'):cssMob+planoMod;
     // Semeia o progresso salvo no banco (aceita var/let/const e espaçamentos diferentes)
     planoMod=planoMod.replace(/(var|let|const)(\s+done\s*=\s*new\s+Set\s*\()\s*\)/,
       function(m,g1,g2){return g1+g2+JSON.stringify(prog)+')';});
@@ -4568,7 +4679,7 @@ function renderAluPlano(c){
     doc.open(); doc.write(planoMod); doc.close();
     // Aplica o zoom escolhido (ou ajuste automático em telas pequenas)
     setTimeout(function(){
-      if(window.innerWidth<600&&_planoZoom===1)_planoZoom=0.8;
+      if(window.innerWidth<600&&_planoZoom===1)_planoZoom=0.9;
       if(doc.body)doc.body.style.zoom=_planoZoom;
       var lbl=document.getElementById('plano-zoom-lbl');
       if(lbl)lbl.textContent=Math.round(_planoZoom*100)+'%';
@@ -4873,12 +4984,26 @@ async function removerJogo(jogoId){
 function jogarJogo(jogoId){
   var j=JOGOS.find(function(x){return x.id===jogoId;});
   if(!j) return;
-  var html='<div class="mhdr"><h2>'+j.titulo+'</h2><button class="mclose" onclick="closeModal()">✕</button></div>'
-    +'<div style="padding:0 20px 20px">'
-    +'<iframe style="width:100%;height:78vh;border:none;border-radius:8px" sandbox="allow-scripts allow-same-origin allow-popups" srcdoc="'+j.html.replace(/"/g,'&quot;')+'"></iframe>'
-    +'</div>';
-  openModal(html);
+  fecharJogo();
+  var h=j.html||'';
+  if(!/name=["']viewport["']/i.test(h)){
+    h=/<head[^>]*>/i.test(h)?h.replace(/<head([^>]*)>/i,'<head$1><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">')
+      :'<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'+h;
+  }
+  var ov=document.createElement('div');
+  ov.id='jogo-overlay';
+  ov.innerHTML='<div class="jogo-bar"><div class="jogo-bar-tit"></div><button class="jogo-fechar" onclick="fecharJogo()"><i class="ti ti-x"></i> Fechar</button></div><iframe id="jogo-frame" allow="fullscreen" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>';
+  document.body.appendChild(ov);
+  ov.querySelector('.jogo-bar-tit').textContent=j.titulo;
+  document.getElementById('jogo-frame').srcdoc=h;
+  document.body.style.overflow='hidden';
 }
+function fecharJogo(){
+  var ov=document.getElementById('jogo-overlay');
+  if(ov) ov.remove();
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape') fecharJogo();});
 
 function renderAluMateriais(c){
   var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
@@ -4903,15 +5028,16 @@ function renderAluJogos(c){
   var al=ALUNOS.find(function(a){return a.id===S.alunoId;});
   var meuId=al?al.id:'';
   var meusJogos=JOGOS.filter(function(j){return (j.liberadoPara||[]).includes(meuId);});
-  c.innerHTML='<div class="card"><div class="ch"><i class="ti ti-device-gamepad-2"></i><h3>🎮 Jogos</h3></div>'
+  c.innerHTML='<div class="card" style="padding-left:0;padding-right:0"><div class="ch" style="padding:0 16px"><i class="ti ti-device-gamepad-2"></i><h3>🎮 Jogos</h3></div>'
     +(meusJogos.length
-      ?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:0 16px 16px">'
+      ?'<div class="jogos-grid">'
        +meusJogos.map(function(j){
-         return '<div style="background:rgba(121,20,40,.04);border-radius:10px;padding:16px;border:1px solid rgba(121,20,40,.1)">'
-           +'<i class="ti ti-device-gamepad-2" style="font-size:28px;color:var(--cr);display:block;margin-bottom:8px"></i>'
-           +'<div style="font-size:13px;font-weight:700;color:var(--cd);margin-bottom:4px">'+j.titulo+'</div>'
-           +'<div style="font-size:11px;color:var(--crose);margin-bottom:12px">'+(j.nivel==='Todos os níveis'?'Todos os níveis':'Nível '+j.nivel)+'</div>'
-           +'<button class="btn btn-primary btn-sm" style="width:100%" onclick="jogarJogo(\''+j.id+'\')"><i class="ti ti-player-play"></i> Jogar</button>'
+         var nv=(j.nivel==='Todos os níveis')?'Todos os níveis':'Nível '+j.nivel;
+         return '<div class="jogo-card" onclick="jogarJogo(\''+j.id+'\')">'
+           +'<div class="jogo-ico"><i class="ti ti-device-gamepad-2"></i></div>'
+           +'<div class="jogo-tit">'+j.titulo+'</div>'
+           +'<div class="jogo-nv">'+nv+'</div>'
+           +'<button class="btn btn-primary jogo-btn"><i class="ti ti-player-play"></i> Jogar</button>'
            +'</div>';
        }).join('')+'</div>'
       :'<div style="text-align:center;padding:40px;color:var(--crose)"><i class="ti ti-mood-empty" style="font-size:36px;display:block;margin-bottom:8px"></i>Nenhum jogo disponível ainda.<br><span style="font-size:11px">Sua teacher irá liberar jogos em breve.</span></div>')
@@ -4962,7 +5088,7 @@ if(document.readyState==='loading'){
 }
 
 // ── Selo de versão (para conferir se o deploy atualizou) ──
-var BUILD_VERSAO='v19.out.T';
+var BUILD_VERSAO='v19.out.V';
 (function(){
   var b=document.createElement('div');
   b.textContent=BUILD_VERSAO;
